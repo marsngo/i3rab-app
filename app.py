@@ -13,7 +13,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- 2. التنسيق (CSS) ---
+# --- 2. تنسيق الـ CSS الحديث والعاكس للبطاقات ---
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap');
@@ -24,83 +24,72 @@ st.markdown("""
 }
 
 .stApp {
-    background-color: #1e293b !important;
+    background-color: #0f172a !important;
     color: #f8fafc !important;
 }
 
 #MainMenu, header, footer {
     visibility: hidden;
+    height: 0px;
 }
 
-/* حاوية البطاقات */
-.word-cards-container {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 16px;
-    margin-top: 15px;
-    width: 100%;
-}
-
-/* تصميم البطاقة */
-.word-card {
-    background: #0f172a !important;
-    border: 2px solid #3b82f6 !important;
+/* تنسيق البطاقة الواحدة */
+.card-box {
+    background-color: #1e293b;
+    border: 2px solid #3b82f6;
     border-radius: 16px;
     padding: 20px;
+    margin-bottom: 20px;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
 }
 
-.word-header {
+.card-header-flex {
     display: flex;
     justify-content: space-between;
     align-items: center;
     border-bottom: 2px solid #1e40af;
     padding-bottom: 10px;
-    margin-bottom: 12px;
+    margin-bottom: 14px;
 }
 
 .word-title {
     font-size: 1.8rem;
     font-weight: 800;
-    color: #38bdf8 !important;
+    color: #38bdf8;
 }
 
 .word-pos {
-    background: #2563eb !important;
-    color: #ffffff !important;
+    background: #2563eb;
+    color: #ffffff;
     font-size: 0.85rem;
-    padding: 4px 12px;
+    padding: 4px 14px;
     border-radius: 20px;
     font-weight: 700;
 }
 
-.card-section {
-    font-size: 1rem;
-    line-height: 1.7;
-    margin-bottom: 10px;
-    color: #f8fafc !important;
-}
-
 .section-label {
-    color: #93c5fd !important;
+    color: #93c5fd;
     font-weight: 700;
 }
 
 .morpho-box {
     margin-top: 12px;
-    padding: 10px;
-    background: #1e293b !important;
+    padding: 12px;
+    background: #0f172a;
     border-radius: 10px;
-    border: 1px solid #475569 !important;
+    border: 1px solid #334155;
 }
 
 .morpho-item {
-    color: #4ade80 !important;
+    color: #4ade80;
     margin-bottom: 4px;
+    font-size: 0.95rem;
 }
 
-.morpho-item.details {
-    color: #facc15 !important;
+.morpho-item-details {
+    color: #facc15;
+    margin-bottom: 4px;
+    font-size: 0.95rem;
 }
 
 .footer-container {
@@ -131,9 +120,11 @@ st.markdown("""
 tab1, tab2 = st.tabs(["🔍 تحليل النص والإعراب", "📚 تحضير درس للمعلم (.docx)"])
 
 with tab1:
+    # إعادة المثال الأصلي المطلوب
     input_text = st.text_area(
         "أدخل الجملة أو الآية القرآنية:",
-        placeholder="مثال: لَوْ جَاءَ مُعْتَذِرًا",
+        placeholder="مثال: لَوْ أَنْزَلْنَا هَذَا الْقُرْآنَ عَلَى جَبَلٍ",
+        value="لَوْ أَنْزَلْنَا هَذَا الْقُرْآنَ عَلَى جَبَلٍ",
         height=100
     )
     
@@ -141,41 +132,45 @@ with tab1:
         if not input_text.strip():
             st.error("رجاءً أدخل نصاً للتحليل.")
         else:
-            with st.spinner("جاري التحليل النحوي والصرفي..."):
+            with st.spinner("جاري التحليل واستخراج إعراب جميع الكلمات..."):
                 result = analyze_arabic_text(input_text)
                 
             if not result:
                 st.error("حدث خطأ أثناء معالجة النص. يرجى التحقق من الاتصال والمفتاح.")
             else:
-                st.markdown("### 🔤 تحليل المفردات والصرف")
+                st.markdown("### 🔤 تحليل المفردات والصرف لجميع الكلمات")
                 
-                # بناء الـ HTML الصحيح للبطاقات مع تنظيف الكود
-                cards_html = "<div class=\"word-cards-container\">"
-                for item in result.words_analysis:
-                    cards_html += f"""
-                    <div class="word-card">
-                        <div class="word-header">
-                            <span class="word-title">{item.diacritization}</span>
-                            <span class="word-pos">{item.pos}</span>
-                        </div>
-                        <div class="card-section">
-                            <span class="section-label">📌 الإعراب:</span> {item.parsing.irab}
-                        </div>
-                        <div class="card-section">
-                            <span class="section-label">💡 التعليل النحوي:</span> {item.parsing.reason}
-                        </div>
-                        <div class="morpho-box">
-                            <div class="morpho-item">🌱 <b>الجذر:</b> {item.morphology.root}</div>
-                            <div class="morpho-item">⚖️ <b>الوزن:</b> {item.morphology.weight}</div>
-                            <div class="morpho-item">🔍 <b>النوع:</b> {item.morphology.word_type}</div>
-                            {f'<div class="morpho-item details">⚙️ {item.morphology.derivation_details}</div>' if item.morphology.derivation_details else ''}
-                        </div>
-                    </div>
-                    """
-                cards_html += "</div>"
+                # إظهار كل كلمة في بطاقة منفصلة ومضمونة 100% داخل أعمدة متجاوبة
+                words = result.words_analysis
                 
-                # إظهار البطاقات بالخاصية الصحيحة
-                st.markdown(cards_html, unsafe_allow_html=True)
+                # عرض البطاقات في شبكة من 2 أو 3 أعمدة حسب الشاشة
+                cols = st.columns(2)
+                for index, item in enumerate(words):
+                    col = cols[index % 2]
+                    with col:
+                        details_html = f"<div class='morpho-item-details'>⚙️ {item.morphology.derivation_details}</div>" if item.morphology.derivation_details else ""
+                        
+                        card_html = f"""
+                        <div class="card-box">
+                            <div class="card-header-flex">
+                                <span class="word-title">{item.diacritization}</span>
+                                <span class="word-pos">{item.pos}</span>
+                            </div>
+                            <div style="margin-bottom: 10px; font-size: 1rem; line-height: 1.7;">
+                                <span class="section-label">📌 الإعراب:</span> {item.parsing.irab}
+                            </div>
+                            <div style="margin-bottom: 10px; font-size: 1rem; line-height: 1.7;">
+                                <span class="section-label">💡 التعليل النحوي:</span> {item.parsing.reason}
+                            </div>
+                            <div class="morpho-box">
+                                <div class="morpho-item">🌱 <b>الجذر:</b> {item.morphology.root}</div>
+                                <div class="morpho-item">⚖️ <b>الوزن:</b> {item.morphology.weight}</div>
+                                <div class="morpho-item">🔍 <b>النوع:</b> {item.morphology.word_type}</div>
+                                {details_html}
+                            </div>
+                        </div>
+                        """
+                        st.markdown(card_html, unsafe_allow_html=True)
                 
                 st.markdown("---")
                 
@@ -200,7 +195,7 @@ with tab1:
 with tab2:
     lesson_topic = st.text_input(
         "عنوان أو موضوع الدرس النحوي/الصرفي:",
-        placeholder="مثال: أحكام المفعول لأجله"
+        placeholder="مثال: أحكام المفعول لأجله مع الشواهد والأمثلة"
     )
     
     if st.button("توليد خطة الدرس والتصدير إلى Word 📄", key="btn_lesson"):
