@@ -5,15 +5,15 @@ from config import GEMINI_API_KEY, MODEL_NAME
 from google import genai
 from prompts.system_prompts import LESSON_GENERATOR_PROMPT
 
-# --- 1. إعدادات الصفحة والتصميم الداكن 2026 ---
+# --- 1. إعدادات الصفحة ---
 st.set_page_config(
-    page_title="المعرّب الذكي | AI Arabic Syntax Engine",
+    page_title="المعرّب الذكي",
     page_icon="📖",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# --- 2. تنسيق CSS عصري عالي التباين متوافق مع الجوال ومصمم لـ Streamlit ---
+# --- 2. التنسيق (CSS) ---
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap');
@@ -23,33 +23,31 @@ st.markdown("""
     direction: rtl !important;
 }
 
-/* خلفية داكنة نقية */
 .stApp {
-    background-color: #090d16 !important;
-    color: #ffffff !important;
+    background-color: #1e293b !important;
+    color: #f8fafc !important;
 }
 
-/* إخفاء القوائم والفوتر التلقائي لـ Streamlit */
 #MainMenu, header, footer {
     visibility: hidden;
-    height: 0px;
 }
 
-/* شبكة بطاقات الكلمات */
+/* حاوية البطاقات */
 .word-cards-container {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     gap: 16px;
     margin-top: 15px;
     width: 100%;
 }
 
+/* تصميم البطاقة */
 .word-card {
-    background: #111827 !important;
-    border: 1px solid #1d4ed8 !important;
+    background: #0f172a !important;
+    border: 2px solid #3b82f6 !important;
     border-radius: 16px;
-    padding: 18px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    padding: 20px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
 }
 
 .word-header {
@@ -62,7 +60,7 @@ st.markdown("""
 }
 
 .word-title {
-    font-size: 1.6rem;
+    font-size: 1.8rem;
     font-weight: 800;
     color: #38bdf8 !important;
 }
@@ -84,20 +82,20 @@ st.markdown("""
 }
 
 .section-label {
-    color: #60a5fa !important;
+    color: #93c5fd !important;
     font-weight: 700;
 }
 
 .morpho-box {
     margin-top: 12px;
     padding: 10px;
-    background: #030712 !important;
+    background: #1e293b !important;
     border-radius: 10px;
-    border: 1px solid #1f2937 !important;
+    border: 1px solid #475569 !important;
 }
 
 .morpho-item {
-    color: #34d399 !important;
+    color: #4ade80 !important;
     margin-bottom: 4px;
 }
 
@@ -105,55 +103,37 @@ st.markdown("""
     color: #facc15 !important;
 }
 
-/* زر الأوامر الرئيسي */
-.stButton>button {
-    background: linear-gradient(135deg, #2563eb 0%, #0284c7 100%) !important;
-    color: #ffffff !important;
-    border: none !important;
-    border-radius: 12px !important;
-    font-size: 1.2rem !important;
-    font-weight: 800 !important;
-    padding: 10px 24px !important;
-    width: 100% !important;
-    box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4) !important;
-}
-
-/* الهوتر */
 .footer-container {
     margin-top: 50px;
     padding: 20px;
-    border-top: 1px solid #1f2937;
+    border-top: 1px solid #334155;
     text-align: center;
-    background: #030712;
+    background: #0f172a;
     border-radius: 12px;
-    color: #9ca3af;
-    font-size: 0.95rem;
+    color: #94a3b8;
 }
 
 .footer-container a {
     color: #38bdf8;
     text-decoration: none;
-    font-weight: bold;
 }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. الهيدر الرئيسي ---
+# --- 3. الهيدر ---
 st.markdown("""
 <div style='text-align: center; margin-bottom: 30px;'>
     <h1 style='font-size: 2.5rem; color: #38bdf8; font-weight: 800;'>📖 المِعْرَبُ الذَّكِيّ</h1>
-    <p style='font-size: 1.1rem; color: #cbd5e1;'>منصة التحليل النحوي والصرفي المتقدمة واستخرج خطط الدروس بالذكاء الاصطناعي</p>
+    <p style='font-size: 1.1rem; color: #cbd5e1;'>منصة التحليل النحوي والصرفي المتقدمة واستخراج خطط الدروس بالذكاء الاصطناعي</p>
 </div>
 """, unsafe_allow_html=True)
 
-# --- 4. التبويبات الرئيسية ---
 tab1, tab2 = st.tabs(["🔍 تحليل النص والإعراب", "📚 تحضير درس للمعلم (.docx)"])
 
-# --- التبويب الأول: الإعراب والصرف ---
 with tab1:
     input_text = st.text_area(
         "أدخل الجملة أو الآية القرآنية:",
-        placeholder="مثال: لَوْ أَنْزَلْنَا هَذَا الْقُرْآنَ عَلَى جَبَلٍ",
+        placeholder="مثال: لَوْ جَاءَ مُعْتَذِرًا",
         height=100
     )
     
@@ -161,41 +141,43 @@ with tab1:
         if not input_text.strip():
             st.error("رجاءً أدخل نصاً للتحليل.")
         else:
-            with st.spinner("جاري التحليل واستخراج الإعراب والصرف من المصادر التراثية..."):
+            with st.spinner("جاري التحليل النحوي والصرفي..."):
                 result = analyze_arabic_text(input_text)
                 
             if not result:
-                st.error("حدث خطأ أثناء معالجة النص. يرجى التحقق من المفتاح أو الاتصال.")
+                st.error("حدث خطأ أثناء معالجة النص. يرجى التحقق من الاتصال والمفتاح.")
             else:
                 st.markdown("### 🔤 تحليل المفردات والصرف")
                 
-                # بناء البطاقات HTML
-                cards_html = "<div class='word-cards-container'>"
+                # بناء الـ HTML الصحيح للبطاقات مع تنظيف الكود
+                cards_html = "<div class=\"word-cards-container\">"
                 for item in result.words_analysis:
                     cards_html += f"""
-                    <div class='word-card'>
-                        <div class='word-header'>
-                            <span class='word-title'>{item.diacritization}</span>
-                            <span class='word-pos'>{item.pos}</span>
+                    <div class="word-card">
+                        <div class="word-header">
+                            <span class="word-title">{item.diacritization}</span>
+                            <span class="word-pos">{item.pos}</span>
                         </div>
-                        <div class='card-section'>
-                            <span class='section-label'>📌 الإعراب:</span> {item.parsing.irab}
+                        <div class="card-section">
+                            <span class="section-label">📌 الإعراب:</span> {item.parsing.irab}
                         </div>
-                        <div class='card-section'>
-                            <span class='section-label'>💡 التعليل النحوي:</span> {item.parsing.reason}
+                        <div class="card-section">
+                            <span class="section-label">💡 التعليل النحوي:</span> {item.parsing.reason}
                         </div>
-                        <div class='morpho-box'>
-                            <div class='morpho-item'>🌱 <b>الجذر:</b> {item.morphology.root}</div>
-                            <div class='morpho-item'>⚖️ <b>الوزن:</b> {item.morphology.weight}</div>
-                            <div class='morpho-item'>🔍 <b>النوع:</b> {item.morphology.word_type}</div>
-                            {f"<div class='morpho-item details'>⚙️ {item.morphology.derivation_details}</div>" if item.morphology.derivation_details else ""}
+                        <div class="morpho-box">
+                            <div class="morpho-item">🌱 <b>الجذر:</b> {item.morphology.root}</div>
+                            <div class="morpho-item">⚖️ <b>الوزن:</b> {item.morphology.weight}</div>
+                            <div class="morpho-item">🔍 <b>النوع:</b> {item.morphology.word_type}</div>
+                            {f'<div class="morpho-item details">⚙️ {item.morphology.derivation_details}</div>' if item.morphology.derivation_details else ''}
                         </div>
                     </div>
                     """
                 cards_html += "</div>"
+                
+                # إظهار البطاقات بالخاصية الصحيحة
                 st.markdown(cards_html, unsafe_allow_html=True)
                 
-                st.divider()
+                st.markdown("---")
                 
                 col1, col2 = st.columns(2)
                 with col1:
@@ -215,18 +197,17 @@ with tab1:
                     for ref in result.references:
                         st.markdown(f"* {ref}")
 
-# --- التبويب الثاني: تحضير الدروس ---
 with tab2:
     lesson_topic = st.text_input(
         "عنوان أو موضوع الدرس النحوي/الصرفي:",
-        placeholder="مثال: أحكام المفعول لأجله مع الشواهد والأمثلة"
+        placeholder="مثال: أحكام المفعول لأجله"
     )
     
     if st.button("توليد خطة الدرس والتصدير إلى Word 📄", key="btn_lesson"):
         if not lesson_topic.strip():
             st.warning("يرجى كتابة عنوان الدرس أولاً.")
         else:
-            with st.spinner("جاري صياغة خطة الدرس وإنشاء ملف الـ Word..."):
+            with st.spinner("جاري صياغة خطة الدرس..."):
                 try:
                     gemini_client = genai.Client(api_key=GEMINI_API_KEY)
                     prompt = f"{LESSON_GENERATOR_PROMPT}\n\nقم بإعداد خطة درس متكاملة ومفصلة حول موضوع: {lesson_topic}"
@@ -242,23 +223,21 @@ with tab2:
                     
                     st.success("تم تجهيز الدرس بنجاح!")
                     
-                    # زر تحميل الملف المباشر
                     with open(file_path, "rb") as fp:
                         st.download_button(
-                            label="📥 تحميل ملف الـ Word الجاهز للطباعة",
+                            label="📥 تحميل ملف الـ Word",
                             data=fp,
                             file_name=filename,
                             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                         )
                         
                     st.markdown("---")
-                    st.markdown("### معاينة خطة الدرس:")
                     st.markdown(lesson_content)
                     
                 except Exception as e:
                     st.error(f"حدث خطأ أثناء إعداد الدرس: {e}")
 
-# --- 5. الهوتر وتوقيع الحقوق ---
+# --- 4. التوقيع ---
 st.markdown("""
 <div class='footer-container'>
     <p>تصميم وتطوير: <b>مهيدي الخالدي</b> | <a href='mailto:alkhaldimhedy@gmail.com'>alkhaldimhedy@gmail.com</a></p>
