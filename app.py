@@ -13,7 +13,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- 2. تنسيق الـ CSS الحديث والعاكس للبطاقات ---
+# --- 2. تنسيق الـ CSS المحسّن بالكامل (إصلاح صندوق النص + الزر + البطاقات) ---
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap');
@@ -23,6 +23,7 @@ st.markdown("""
     direction: rtl !important;
 }
 
+/* خلفية التطبيق */
 .stApp {
     background-color: #0f172a !important;
     color: #f8fafc !important;
@@ -33,7 +34,37 @@ st.markdown("""
     height: 0px;
 }
 
-/* تنسيق البطاقة الواحدة */
+/* إصلاح ألوان صندوق النص والزر ليكون النص واضحاً جداً */
+textarea, input[type="text"] {
+    background-color: #1e293b !important;
+    color: #ffffff !important;
+    border: 2px solid #3b82f6 !important;
+    border-radius: 12px !important;
+    font-size: 1.1rem !important;
+}
+
+textarea::placeholder {
+    color: #94a3b8 !important;
+}
+
+/* تصميم الزر الرئيسي */
+.stButton>button {
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
+    color: #ffffff !important;
+    font-size: 1.2rem !important;
+    font-weight: 800 !important;
+    border-radius: 12px !important;
+    border: none !important;
+    padding: 10px 24px !important;
+    width: 100% !important;
+    box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4) !important;
+}
+
+.stButton>button:hover {
+    background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%) !important;
+}
+
+/* تصميم البطاقات النظيف */
 .card-box {
     background-color: #1e293b;
     border: 2px solid #3b82f6;
@@ -120,7 +151,6 @@ st.markdown("""
 tab1, tab2 = st.tabs(["🔍 تحليل النص والإعراب", "📚 تحضير درس للمعلم (.docx)"])
 
 with tab1:
-    # إعادة المثال الأصلي المطلوب
     input_text = st.text_area(
         "أدخل الجملة أو الآية القرآنية:",
         placeholder="مثال: لَوْ أَنْزَلْنَا هَذَا الْقُرْآنَ عَلَى جَبَلٍ",
@@ -140,36 +170,18 @@ with tab1:
             else:
                 st.markdown("### 🔤 تحليل المفردات والصرف لجميع الكلمات")
                 
-                # إظهار كل كلمة في بطاقة منفصلة ومضمونة 100% داخل أعمدة متجاوبة
                 words = result.words_analysis
-                
-                # عرض البطاقات في شبكة من 2 أو 3 أعمدة حسب الشاشة
                 cols = st.columns(2)
+                
                 for index, item in enumerate(words):
                     col = cols[index % 2]
                     with col:
+                        # تفاصيل الاشتقاق إن وجدت
                         details_html = f"<div class='morpho-item-details'>⚙️ {item.morphology.derivation_details}</div>" if item.morphology.derivation_details else ""
                         
-                        card_html = f"""
-                        <div class="card-box">
-                            <div class="card-header-flex">
-                                <span class="word-title">{item.diacritization}</span>
-                                <span class="word-pos">{item.pos}</span>
-                            </div>
-                            <div style="margin-bottom: 10px; font-size: 1rem; line-height: 1.7;">
-                                <span class="section-label">📌 الإعراب:</span> {item.parsing.irab}
-                            </div>
-                            <div style="margin-bottom: 10px; font-size: 1rem; line-height: 1.7;">
-                                <span class="section-label">💡 التعليل النحوي:</span> {item.parsing.reason}
-                            </div>
-                            <div class="morpho-box">
-                                <div class="morpho-item">🌱 <b>الجذر:</b> {item.morphology.root}</div>
-                                <div class="morpho-item">⚖️ <b>الوزن:</b> {item.morphology.weight}</div>
-                                <div class="morpho-item">🔍 <b>النوع:</b> {item.morphology.word_type}</div>
-                                {details_html}
-                            </div>
-                        </div>
-                        """
+                        # كود HTML مُصحح ونظيف وبدون أوسمة إغلاق زائدة
+                        card_html = f"""<div class="card-box"><div class="card-header-flex"><span class="word-title">{item.diacritization}</span><span class="word-pos">{item.pos}</span></div><div style="margin-bottom: 10px; font-size: 1rem; line-height: 1.7;"><span class="section-label">📌 الإعراب:</span> {item.parsing.irab}</div><div style="margin-bottom: 10px; font-size: 1rem; line-height: 1.7;"><span class="section-label">💡 التعليل النحوي:</span> {item.parsing.reason}</div><div class="morpho-box"><div class="morpho-item">🌱 <b>الجذر:</b> {item.morphology.root}</div><div class="morpho-item">⚖️ <b>الوزن:</b> {item.morphology.weight}</div><div class="morpho-item">🔍 <b>النوع:</b> {item.morphology.word_type}</div>{details_html}</div></div>"""
+                        
                         st.markdown(card_html, unsafe_allow_html=True)
                 
                 st.markdown("---")
