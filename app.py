@@ -7,7 +7,7 @@ from prompts.system_prompts import LESSON_GENERATOR_PROMPT
 
 # --- 1. إعدادات الصفحة ---
 st.set_page_config(
-    page_title="المعرّب الذكي",
+    page_title="الإعراب الذكي",
     page_icon="📖",
     layout="wide",
     initial_sidebar_state="collapsed"
