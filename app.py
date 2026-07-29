@@ -143,7 +143,7 @@ textarea::placeholder {
 # --- 3. الهيدر ---
 st.markdown("""
 <div style='text-align: center; margin-bottom: 30px;'>
-    <h1 style='font-size: 2.5rem; color: #38bdf8; font-weight: 800;'>📖 المُعْرَبُ الذَّكيّ</h1>
+    <h1 style='font-size: 2.5rem; color: #38bdf8; font-weight: 800;'>📖 المُعْرِبُ الذَّكيّ</h1>
     <p style='font-size: 1.1rem; color: #cbd5e1;'>منصة التحليل النحوي والصرفي المتقدمة واستخراج خطط الدروس بالذكاء الاصطناعي</p>
 </div>
 """, unsafe_allow_html=True)
