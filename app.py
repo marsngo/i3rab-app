@@ -381,26 +381,27 @@ with tab3:
         if "exam_data" in st.session_state:
             exam_data = st.session_state["exam_data"]
             
-            # 1. عرض الأبيات العمودية
-            poem_html = "<div class='poem-box'><h4 style='color: #38bdf8; margin-bottom: 16px; font-weight: 800;'>📜 النص الشعري المقرر للشهادة:</h4>"
-            poem_lines = exam_data.get('poem', [])
+            # 1. عرض الأبيات العمودية باستخدام Streamlit Containers و Columns لضمان المحاذاة وعدم انكسار الكود
+            st.markdown("<h4 style='color: #38bdf8; margin-bottom: 16px; font-weight: 800; text-align: right;'>📜 النص الشعري المقرر للشهادة:</h4>", unsafe_allow_html=True)
             
-            if isinstance(poem_lines, list):
-                for verse in poem_lines:
-                    first_part = verse.get('first', '') if isinstance(verse, dict) else str(verse)
-                    second_part = verse.get('second', '') if isinstance(verse, dict) else ""
-                    poem_html += f"""
-                    <div class="poem-row">
-                        <span class="hemistich-first">{first_part}</span>
-                        <span class="hemistich-second">{second_part}</span>
-                    </div>
-                    """
-            poem_html += "</div>"
-            st.markdown(poem_html, unsafe_allow_html=True)
+            poem_container = st.container()
+            with poem_container:
+                poem_lines = exam_data.get('poem', [])
+                if isinstance(poem_lines, list):
+                    for verse in poem_lines:
+                        first_part = verse.get('first', '') if isinstance(verse, dict) else str(verse)
+                        second_part = verse.get('second', '') if isinstance(verse, dict) else ""
+                        
+                        col_first, col_second = st.columns(2)
+                        with col_first:
+                            st.markdown(f"<div style='text-align: right; font-size: 1.2rem; font-weight: 700; color: #f8fafc; padding: 4px 0;'>{first_part}</div>", unsafe_allow_html=True)
+                        with col_second:
+                            st.markdown(f"<div style='text-align: left; font-size: 1.2rem; font-weight: 700; color: #38bdf8; padding: 4px 0;'>{second_part}</div>", unsafe_allow_html=True)
+                        st.markdown("<hr style='border: 0.5px dashed #334155; margin: 4px 0;'>", unsafe_allow_html=True)
             
-            st.markdown("<h3 style='direction: rtl; text-align: right;'>✍️ الأسئلة والإجابات المطلوبة:</h3>", unsafe_allow_html=True)
+            st.markdown("<h3 style='direction: rtl; text-align: right; margin-top: 30px;'>✍️ الأسئلة والإجابات المطلوبة:</h3>", unsafe_allow_html=True)
             
-            # 2. عرض كل سؤال فرعي بحقل وزر تثبيت مستقلين
+            # 2. عرض الأسئلة بشكل منفصل
             current_section = ""
             for q in exam_data.get("questions", []):
                 q_id = q["id"]
