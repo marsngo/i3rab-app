@@ -4,16 +4,17 @@ from lesson_generator import create_formatted_lesson_docx
 from config import GEMINI_API_KEY, MODEL_NAME
 from google import genai
 from prompts.system_prompts import LESSON_GENERATOR_PROMPT
+from prompts.syrian_curriculum import SYRIAN_CURRICULUM_PROMPT, SYRIAN_EXAM_PROMPT
 
 # --- 1. إعدادات الصفحة ---
 st.set_page_config(
-    page_title="الإعراب الذكي",
+    page_title="المعرّب الذكي | المنصة التعليمية المتكاملة",
     page_icon="📖",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# --- 2. تنسيق الـ CSS المحسّن بالكامل (إصلاح صندوق النص + الزر + البطاقات) ---
+# --- 2. التنسيق (CSS) ---
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap');
@@ -23,7 +24,6 @@ st.markdown("""
     direction: rtl !important;
 }
 
-/* خلفية التطبيق */
 .stApp {
     background-color: #0f172a !important;
     color: #f8fafc !important;
@@ -34,7 +34,6 @@ st.markdown("""
     height: 0px;
 }
 
-/* إصلاح ألوان صندوق النص والزر ليكون النص واضحاً جداً */
 textarea, input[type="text"] {
     background-color: #1e293b !important;
     color: #ffffff !important;
@@ -43,11 +42,6 @@ textarea, input[type="text"] {
     font-size: 1.1rem !important;
 }
 
-textarea::placeholder {
-    color: #94a3b8 !important;
-}
-
-/* تصميم الزر الرئيسي */
 .stButton>button {
     background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
     color: #ffffff !important;
@@ -60,11 +54,6 @@ textarea::placeholder {
     box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4) !important;
 }
 
-.stButton>button:hover {
-    background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%) !important;
-}
-
-/* تصميم البطاقات النظيف */
 .card-box {
     background-color: #1e293b;
     border: 2px solid #3b82f6;
@@ -140,16 +129,17 @@ textarea::placeholder {
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. الهيدر ---
+# --- 3. الهيدر الرئيسي ---
 st.markdown("""
 <div style='text-align: center; margin-bottom: 30px;'>
-    <h1 style='font-size: 2.5rem; color: #38bdf8; font-weight: 800;'>📖 المُعْرِبُ الذَّكيّ</h1>
-    <p style='font-size: 1.1rem; color: #cbd5e1;'>منصة التحليل النحوي والصرفي المتقدمة واستخراج خطط الدروس بالذكاء الاصطناعي</p>
+    <h1 style='font-size: 2.5rem; color: #38bdf8; font-weight: 800;'>📖 المِعْرَبُ الذَّكِيّ</h1>
+    <p style='font-size: 1.1rem; color: #cbd5e1;'>المنصة الذكية المتقدمة للتحليل النحوي ومنهاج اللغة العربية للشهادات السورية</p>
 </div>
 """, unsafe_allow_html=True)
 
-tab1, tab2 = st.tabs(["🔍 تحليل النص والإعراب", "📚 تحضير درس للمعلم (.docx)"])
+tab1, tab2, tab3 = st.tabs(["🔍 تحليل النص والإعراب", "📚 تحضير درس للمعلم (.docx)", "🎓 منهاج التاسع والبكالوريا (سوريا)"])
 
+# === التبويب الأول: الإعراب ===
 with tab1:
     input_text = st.text_area(
         "أدخل الجملة أو الآية القرآنية:",
@@ -176,16 +166,11 @@ with tab1:
                 for index, item in enumerate(words):
                     col = cols[index % 2]
                     with col:
-                        # تفاصيل الاشتقاق إن وجدت
                         details_html = f"<div class='morpho-item-details'>⚙️ {item.morphology.derivation_details}</div>" if item.morphology.derivation_details else ""
-                        
-                        # كود HTML مُصحح ونظيف وبدون أوسمة إغلاق زائدة
                         card_html = f"""<div class="card-box"><div class="card-header-flex"><span class="word-title">{item.diacritization}</span><span class="word-pos">{item.pos}</span></div><div style="margin-bottom: 10px; font-size: 1rem; line-height: 1.7;"><span class="section-label">📌 الإعراب:</span> {item.parsing.irab}</div><div style="margin-bottom: 10px; font-size: 1rem; line-height: 1.7;"><span class="section-label">💡 التعليل النحوي:</span> {item.parsing.reason}</div><div class="morpho-box"><div class="morpho-item">🌱 <b>الجذر:</b> {item.morphology.root}</div><div class="morpho-item">⚖️ <b>الوزن:</b> {item.morphology.weight}</div><div class="morpho-item">🔍 <b>النوع:</b> {item.morphology.word_type}</div>{details_html}</div></div>"""
-                        
                         st.markdown(card_html, unsafe_allow_html=True)
                 
                 st.markdown("---")
-                
                 col1, col2 = st.columns(2)
                 with col1:
                     st.markdown("### 🧩 إعراب الجمل")
@@ -199,11 +184,11 @@ with tab1:
                     st.markdown("### 📚 المراجع والمصادر")
                     if result.is_quranic and result.quran_reference:
                         st.markdown(f"📖 **المصدر القرآني:** سورة **{result.quran_reference.surah}** - الآية **({result.quran_reference.ayah})**")
-                    
                     st.markdown("**المراجع النحوية والصرفية:**")
                     for ref in result.references:
                         st.markdown(f"* {ref}")
 
+# === التبويب الثاني: تحضير الدرس ===
 with tab2:
     lesson_topic = st.text_input(
         "عنوان أو موضوع الدرس النحوي/الصرفي:",
@@ -229,7 +214,6 @@ with tab2:
                     file_path = create_formatted_lesson_docx(lesson_topic, lesson_content, filename)
                     
                     st.success("تم تجهيز الدرس بنجاح!")
-                    
                     with open(file_path, "rb") as fp:
                         st.download_button(
                             label="📥 تحميل ملف الـ Word",
@@ -237,17 +221,99 @@ with tab2:
                             file_name=filename,
                             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                         )
-                        
                     st.markdown("---")
                     st.markdown(lesson_content)
-                    
                 except Exception as e:
                     st.error(f"حدث خطأ أثناء إعداد الدرس: {e}")
+
+# === التبويب الثالث: المنهاج السوري (تاسع وبكالوريا) ===
+with tab3:
+    st.markdown("## 🎓 دليل وتدريبات المنهاج السوري")
+    
+    sub_mode = st.radio(
+        "اختر الخدمة المطلوبة:",
+        ["📖 شرح درس وتطبيقاته من المنهاج", "📝 نموذج امتحاني وتصحيح تلقائي"],
+        horizontal=True
+    )
+    
+    st.markdown("---")
+    
+    col_grade, col_branch = st.columns(2)
+    with col_grade:
+        grade = st.selectbox("المرحلة الدراسية:", ["الثالث الثانوي (البكالوريا)", "الصف التاسع الإعدادي"])
+    with col_branch:
+        branch = st.selectbox("الفرع (للبكالوريا):", ["العلمي", "الأدبي"]) if grade == "الثالث الثانوي (البكالوريا)" else "عام"
+
+    # --- الخدمة الأولى: شرح الدرس ---
+    if sub_mode == "📖 شرح درس وتطبيقاته من المنهاج":
+        topic = st.text_input(
+            "اكتب اسم الدرس من الكتاب المقرر:",
+            placeholder="مثال: المفعول المطلق، قواعد الإعلال والإبدال، البحر البسيط، الاستثناء..."
+        )
+        
+        if st.button("عرض الشرح والشواهد الأمتحانية 📚", key="btn_syria_explain"):
+            if not topic.strip():
+                st.warning("يرجى كتابة اسم الدرس.")
+            else:
+                with st.spinner("جاري استخراج شرح الدرس والشواهد المعتمدة من كتاب الوزارة..."):
+                    try:
+                        gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+                        query = f"{SYRIAN_CURRICULUM_PROMPT}\n\nالمرحلة: {grade} ({branch})\nاسم الدرس: {topic}\n\nيرجى تقديم شرح مفصل وشامل يتضمن: القاعدة، الشواهد من قصائد الكتاب، أمثلة معربة، وطريقة السؤال الصادرة في الامتحان الوزاري وكيفية الإجابة عليها."
+                        response = gemini_client.models.generate_content(
+                            model=MODEL_NAME,
+                            contents=query,
+                        )
+                        st.markdown(response.text)
+                    except Exception as e:
+                        st.error(f"حدث خطأ: {e}")
+
+    # --- الخدمة الثانية: الاختبار والتصحيح التلقائي ---
+    else:
+        st.markdown("### 🎲 الاختبار الامتحاني السريع (حسب سلم التصحيح الوزاري)")
+        
+        if st.button("توليد أسئلة تطبيقية جديدة 🔄", key="btn_gen_exam"):
+            with st.spinner("جاري توليد أبيات شعرية وأسئلة وزارية..."):
+                try:
+                    gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+                    exam_query = f"{SYRIAN_EXAM_PROMPT}\n\nقم بصياغة نموذج امتحاني مصغر لطلاب {grade} ({branch}) يحتوي على: أبيات شعرية مناسبة للمنهاج السوري، مع 3 أسئلة متنوعة (إعراب مفردات وجمل، تطبيق صرفي أو بلاغي، واستخراج)."
+                    response = gemini_client.models.generate_content(
+                        model=MODEL_NAME,
+                        contents=exam_query,
+                    )
+                    st.session_state["current_exam"] = response.text
+                except Exception as e:
+                    st.error(f"حدث خطأ: {e}")
+                    
+        if "current_exam" in st.session_state:
+            st.info(st.session_state["current_exam"])
+            
+            student_answers = st.text_area(
+                "اكتب إجاباتك هنا بالتفصيل (مثل ورقة الإجابة الامتحانية):",
+                placeholder="اكتب إجابة السؤال الأول، ثم الثاني...",
+                height=150
+            )
+            
+            if st.button("تصحيح وتوفير سلم الدرجات ⚖️", key="btn_grade"):
+                if not student_answers.strip():
+                    st.warning("يرجى كتابة إجاباتك أولاً.")
+                else:
+                    with st.spinner("جاري مقارنة إجاباتك مع سلم التصحيح الوزاري..."):
+                        try:
+                            gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+                            grade_query = f"{SYRIAN_EXAM_PROMPT}\n\nالأسئلة الامتحانية كانت:\n{st.session_state['current_exam']}\n\nإجابة الطالب كانت:\n{student_answers}\n\nقم بتصحيح إجابة الطالب بصرامة مستنداً إلى سلم التصحيح السوري، وقدم له: الدرجة المقدرة، كشف الأخطاء، الصواب النموذجي، والنصائح."
+                            response = gemini_client.models.generate_content(
+                                model=MODEL_NAME,
+                                contents=grade_query,
+                            )
+                            st.markdown("### 📊 نتيجة التقييم وسلم التصحيح:")
+                            st.markdown(response.text)
+                        except Exception as e:
+                            st.error(f"حدث خطأ أثناء التصحيح: {e}")
 
 # --- 4. التوقيع ---
 st.markdown("""
 <div class='footer-container'>
     <p>تصميم وتطوير: <b>مهيدي الخالدي</b> | <a href='mailto:alkhaldimhedy@gmail.com'>alkhaldimhedy@gmail.com</a></p>
-    <p>جميع الحقوق محفوظة © 2026 | الإصدار: <b>v1.0.0</b></p>
+    <p>جميع الحقوق محفوظة © 2026 | الإصدار: <b>v1.1.0</b></p>
 </div>
 """, unsafe_allow_html=True)
