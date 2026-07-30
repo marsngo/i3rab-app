@@ -1,7 +1,6 @@
 import streamlit as st
 import json
 import os
-from engine import analyze_arabic_text, generate_content_with_fallback
 from lesson_generator import create_formatted_lesson_docx
 from prompts.system_prompts import LESSON_GENERATOR_PROMPT
 from prompts.syrian_curriculum import SYRIAN_CURRICULUM_PROMPT, SYRIAN_EXAM_PROMPT
