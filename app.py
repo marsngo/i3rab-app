@@ -246,14 +246,14 @@ with tab3:
 
     # --- الخدمة الأولى: شرح الدرس ---
     if sub_mode == "📖 شرح درس وتطبيقاته من المنهاج":
-        topic = st.text_input(
-            "اكتب اسم الدرس من الكتاب المقرر:",
-            placeholder="مثال: المفعول المطلق، قواعد الإعلال والإبدال، البحر البسيط، الاستثناء..."
-        )
+        lessons_list = SYRIAN_BAC_LESSONS if grade == "الثالث الثانوي (البكالوريا)" else SYRIAN_9TH_LESSONS
+        selected_lesson = st.selectbox("اختر الدرس المقرر من القائمة:", lessons_list)
         
-        if st.button("عرض الشرح والشواهد الأمتحانية 📚", key="btn_syria_explain"):
+        topic = st.text_input("اكتب اسم الدرس المطلوب:") if selected_lesson == "درس آخر (كتابة يدوية)..." else selected_lesson
+            
+        if st.button("عرض الشرح والشواهد الامتحانية 📚", key="btn_syria_explain"):
             if not topic.strip():
-                st.warning("يرجى كتابة اسم الدرس.")
+                st.warning("يرجى اختيار أو كتابة اسم الدرس.")
             else:
                 with st.spinner("جاري استخراج شرح الدرس والشواهد المعتمدة من كتاب الوزارة..."):
                     try:
@@ -267,48 +267,104 @@ with tab3:
                     except Exception as e:
                         st.error(f"حدث خطأ: {e}")
 
-    # --- الخدمة الثانية: الاختبار والتصحيح التلقائي ---
+    # --- الخدمة الثانية: الاختبار والتصحيح التلقائي المطور ---
     else:
-        st.markdown("### 🎲 الاختبار الامتحاني السريع (حسب سلم التصحيح الوزاري)")
+        st.markdown("### 📝 ورقة امتحانية تفاعلية")
         
-        if st.button("توليد أسئلة تطبيقية جديدة 🔄", key="btn_gen_exam"):
-            with st.spinner("جاري توليد أبيات شعرية وأسئلة وزارية..."):
+        if st.button("توليد نموذج امتحاني جديد 🎲", key="btn_gen_exam"):
+            with st.spinner("جاري صياغة ورقة الاختبار والأسئلة الوزارية..."):
                 try:
+                    import json
                     gemini_client = genai.Client(api_key=GEMINI_API_KEY)
-                    exam_query = f"{SYRIAN_EXAM_PROMPT}\n\nقم بصياغة نموذج امتحاني مصغر لطلاب {grade} ({branch}) يحتوي على: أبيات شعرية مناسبة للمنهاج السوري، مع 3 أسئلة متنوعة (إعراب مفردات وجمل، تطبيق صرفي أو بلاغي، واستخراج)."
+                    exam_query = f"{SYRIAN_EXAM_PROMPT}\n\nقم بصياغة نموذج امتحاني لطلاب {grade} ({branch}). أخرج النتيجة بتنسيق JSON فقط."
+                    
                     response = gemini_client.models.generate_content(
                         model=MODEL_NAME,
                         contents=exam_query,
                     )
-                    st.session_state["current_exam"] = response.text
-                except Exception as e:
-                    st.error(f"حدث خطأ: {e}")
                     
-        if "current_exam" in st.session_state:
-            st.info(st.session_state["current_exam"])
+                    # تنظيف النص واستخراج الـ JSON
+                    raw_text = response.text.replace("```json", "").replace("```", "").strip()
+                    exam_data = json.loads(raw_text)
+                    
+                    st.session_state["exam_data"] = exam_data
+                    st.session_state["confirmed_answers"] = {}
+                except Exception as e:
+                    st.error("حدث خطأ أثناء توليد الاختبار. يرجى الضغط على زر التوليد مرة أخرى.")
+
+        # عرض الورقة الامتحانية إن كانت متوفرة
+        if "exam_data" in st.session_state:
+            exam_data = st.session_state["exam_data"]
             
-            student_answers = st.text_area(
-                "اكتب إجاباتك هنا بالتفصيل (مثل ورقة الإجابة الامتحانية):",
-                placeholder="اكتب إجابة السؤال الأول، ثم الثاني...",
-                height=150
-            )
+            # 1. عرض الأبيات الشعرية بأسلوب رسمي
+            st.markdown(f"""
+            <div style="background-color: #1e293b; border-right: 5px solid #2563eb; padding: 18px; border-radius: 10px; margin-bottom: 25px;">
+                <h4 style="color: #38bdf8; margin-bottom: 10px;">📜 اقرأ الأبيات الآتية ثم أجب عن الأسئلة:</h4>
+                <p style="font-size: 1.25rem; line-height: 2; white-space: pre-line; color: #f8fafc;">{exam_data.get('poem', '')}</p>
+            </div>
+            """, unsafe_allow_html=True)
             
-            if st.button("تصحيح وتوفير سلم الدرجات ⚖️", key="btn_grade"):
-                if not student_answers.strip():
-                    st.warning("يرجى كتابة إجاباتك أولاً.")
-                else:
-                    with st.spinner("جاري مقارنة إجاباتك مع سلم التصحيح الوزاري..."):
-                        try:
-                            gemini_client = genai.Client(api_key=GEMINI_API_KEY)
-                            grade_query = f"{SYRIAN_EXAM_PROMPT}\n\nالأسئلة الامتحانية كانت:\n{st.session_state['current_exam']}\n\nإجابة الطالب كانت:\n{student_answers}\n\nقم بتصحيح إجابة الطالب بصرامة مستنداً إلى سلم التصحيح السوري، وقدم له: الدرجة المقدرة، كشف الأخطاء، الصواب النموذجي، والنصائح."
-                            response = gemini_client.models.generate_content(
-                                model=MODEL_NAME,
-                                contents=grade_query,
-                            )
-                            st.markdown("### 📊 نتيجة التقييم وسلم التصحيح:")
-                            st.markdown(response.text)
-                        except Exception as e:
-                            st.error(f"حدث خطأ أثناء التصحيح: {e}")
+            st.markdown("### ✍️ الأسئلة والإجابات:")
+            
+            # 2. عرض كل سؤال وحقل إجابته الخاص
+            user_answers = {}
+            for q in exam_data.get("questions", []):
+                q_id = q["id"]
+                st.markdown(f"**س {q_id}: {q['text']}**")
+                
+                ans = st.text_input(
+                    f"إجابتك على السؤال ({q_id}):",
+                    key=f"input_q_{q_id}",
+                    placeholder="اكتب إجابتك هنا..."
+                )
+                
+                # زر تأكيد الإجابة لكل سؤال
+                if st.button(f"تأكيد إجابة السؤال ({q_id}) ✅", key=f"btn_confirm_{q_id}"):
+                    st.session_state["confirmed_answers"][q_id] = ans
+                    st.success(f"تم تثبيت إجابة السؤال {q_id} بنجاح!")
+                
+                if q_id in st.session_state.get("confirmed_answers", {}):
+                    st.caption(f"📌 الإجابة المتبتة: {st.session_state['confirmed_answers'][q_id]}")
+                    
+                st.markdown("---")
+            
+            # 3. زر التصحيح النهائي الشامل
+            if st.button("⚖️ تصحيح نموذج الامتحان وإظهار العلامة النهائية", key="btn_grade_all"):
+                # تجميع كافة الإجابات المكتوبة
+                all_answers_summary = ""
+                for q in exam_data.get("questions", []):
+                    q_id = q["id"]
+                    # أخذ الإجابة المؤكدة أو المكتوبة
+                    final_ans = st.session_state.get("confirmed_answers", {}).get(q_id, st.session_state.get(f"input_q_{q_id}", "لم يجب"))
+                    all_answers_summary += f"السؤال {q_id}: {q['text']}\nإجابة الطالب: {final_ans}\n\n"
+                
+                with st.spinner("جاري تقييم الورقة حسب سلم التصحيح الوزاري الرسمية..."):
+                    try:
+                        gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+                        eval_prompt = f"""
+                        أنت مصحح وزاري معتمد لمادة اللغة العربية في سوريا.
+                        المنهاج: {grade} ({branch})
+                        النص الشعري:
+                        {exam_data.get('poem', '')}
+                        
+                        الأسئلة وإجابات الطالب:
+                        {all_answers_summary}
+                        
+                        قم بتقديم تقرير تصحيح رسمي يحتوي على:
+                        1. العلامة الكلية المقدرة (مثلاً من 60 أو من 20).
+                        2. تصحيح كل سؤال على حدة مع بيان الأخطاء والجواب النموذجي المعتمد.
+                        3. نصائح سريعة للطالب.
+                        """
+                        
+                        response = gemini_client.models.generate_content(
+                            model=MODEL_NAME,
+                            contents=eval_prompt,
+                        )
+                        
+                        st.markdown("## 📊 نتيجة التصحيح وتقييم الأداء:")
+                        st.markdown(response.text)
+                    except Exception as e:
+                        st.error(f"حدث خطأ أثناء إجراء التصحيح: {e}")
 
 # --- 4. التوقيع ---
 st.markdown("""
