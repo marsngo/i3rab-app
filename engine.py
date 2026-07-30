@@ -4,9 +4,9 @@ import random
 from google import genai
 from pydantic import BaseModel, Field
 from typing import List, Optional
-from config import API_KEYS, AVAILABLE_MODELS
+from config import API_KEYS
 
-# --- النص التوجيهي للنظام (مدمج مباشرة لمنع مشاكل الاستيراد) ---
+# --- النص التوجيهي للنظام ---
 SYSTEM_PROMPT = """
 أنت خبير ونحوي متخصص في اللغة العربية والإعراب التفصيلي، ومكلف بتحليل النصوص والنصوص القرآنية بدقة عالية.
 قم بتحليل النص المدخل وإعرابه مفردات وجلماً، مع توضيح الصرف والجذور والأوزان بدقة متناهية.
@@ -46,12 +46,31 @@ class TextAnalysisResponse(BaseModel):
     sentences_analysis: List[SentenceAnalysis]
     references: List[str]
 
+# --- دالة اكتشاف النماذج المتاحة ديناميكياً ---
+def get_working_models(client) -> List[str]:
+    """
+    تستعلم من Google API عن جميع النماذج المتاحة فعلياً والحية للحساب
+    """
+    try:
+        available_models = []
+        for m in client.models.list():
+            # نختار النماذج التي تدعم توليد النصوص فقط وتجنب نماذج الصور أو الصوت
+            if "generateContent" in getattr(m, 'supported_generation_methods', []) or hasattr(m, 'name'):
+                name = m.name.replace("models/", "")
+                if "flash" in name and "embed" not in name:
+                    available_models.append(name)
+        
+        # إذا وجد نماذج نضع نماذج flash في البداية لأنها الأسرع والأعلى في الحصة المجانية
+        if available_models:
+            return sorted(available_models, key=lambda x: ("flash" not in x, x))
+    except Exception:
+        pass
+    
+    # القائمة الاحتياطية المباشرة في حال تعذر الاستعلام
+    return ["gemini-2.5-flash", "gemini-2.0-flash"]
+
 # --- دالة التدوير والاحتياط الذكي العامة ---
 def generate_content_with_fallback(prompt: str) -> str:
-    """
-    تستدعي نماذج Gemini المتاحة بالتتابع مع تدوير المفاتيح.
-    إذا فشل نموذج بـ 404 أو 429، تنتقل تلقائياً للنموذج أو المفتاح التالي.
-    """
     valid_keys = [k for k in API_KEYS if k and k.strip()]
     if not valid_keys:
         raise Exception("لم يتم العثور على أي مفتاح API صالح. يرجى إضافته في Streamlit Secrets أو config.py")
@@ -60,7 +79,9 @@ def generate_content_with_fallback(prompt: str) -> str:
 
     for api_key in valid_keys:
         client = genai.Client(api_key=api_key)
-        for model in AVAILABLE_MODELS:
+        models_to_try = get_working_models(client)
+        
+        for model in models_to_try:
             try:
                 response = client.models.generate_content(
                     model=model,
@@ -75,9 +96,6 @@ def generate_content_with_fallback(prompt: str) -> str:
 
 # --- دالة تحليل النص النحوي (الإعراب) ---
 def analyze_arabic_text(text: str) -> Optional[TextAnalysisResponse]:
-    """
-    تحليل النص النحوي باستخدام النظام الاحتياطي للحصول على نتيجة Structured JSON
-    """
     valid_keys = [k for k in API_KEYS if k and k.strip()]
     if not valid_keys:
         return None
@@ -87,7 +105,9 @@ def analyze_arabic_text(text: str) -> Optional[TextAnalysisResponse]:
 
     for api_key in valid_keys:
         client = genai.Client(api_key=api_key)
-        for model in AVAILABLE_MODELS:
+        models_to_try = get_working_models(client)
+        
+        for model in models_to_try:
             try:
                 response = client.models.generate_content(
                     model=model,
