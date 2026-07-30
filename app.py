@@ -14,7 +14,41 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- 2. التنسيق (CSS) ---
+# --- 2. بيانات دروس المنهاج السوري (تعريف القوائم رئيسياً) ---
+SYRIAN_BAC_LESSONS = [
+    "المفعول المطلق والمفعول لأجله",
+    "المفعول فيه (الظرف)",
+    "الحال والأحكام المتعلقة بها",
+    "التمييز وأنواعه",
+    "الاستثناء وأحكامه",
+    "المنادى وأحكام إعرابه",
+    "أسلوب الشرط (النتائج والأدوات)",
+    "أسلوب التعجب وأحكامه",
+    "أسلوب المدح والذم",
+    "أحكام العدد والمعدود",
+    "قواعد الإعلال (بالقلب وبالحذف)",
+    "قواعد الإبدال",
+    "المشتقات وإعمالها (اسم الفاعل، المفعول، المشبهة)",
+    "العروض: البحر البسيط والكامل والخفيف",
+    "درس آخر (كتابة يدوية)..."
+]
+
+SYRIAN_9TH_LESSONS = [
+    "الأفعال الخمسة وإعرابها",
+    "الأفعال الناقصة والأفعال التامة",
+    "المفعول به والمفعول فيه",
+    "المفعول لأجله والمفعول المطلق",
+    "المبتدأ والخبر ونواسخهما",
+    "المنادى وأنواعه",
+    "النعت (الصفة) والعطف",
+    "التوكيد والبدل",
+    "الاسم الجامد والاسم المشتق",
+    "الميزان الصرفي والصحيح والمعتل",
+    "العروض: البحر الطويل والرجز",
+    "درس آخر (كتابة يدوية)..."
+]
+
+# --- 3. تنسيق الـ CSS ---
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap');
@@ -34,7 +68,21 @@ st.markdown("""
     height: 0px;
 }
 
-textarea, input[type="text"] {
+label, .stRadio label, p, .stSelectbox label {
+    color: #f8fafc !important;
+    font-size: 1.1rem !important;
+    font-weight: 700 !important;
+}
+
+div[role="radiogroup"] label {
+    background-color: #1e293b !important;
+    padding: 8px 16px !important;
+    border-radius: 10px !important;
+    border: 1px solid #3b82f6 !important;
+    margin-left: 10px !important;
+}
+
+textarea, input[type="text"], div[data-baseweb="select"] > div {
     background-color: #1e293b !important;
     color: #ffffff !important;
     border: 2px solid #3b82f6 !important;
@@ -129,7 +177,7 @@ textarea, input[type="text"] {
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. الهيدر الرئيسي ---
+# --- 4. الهيدر الرئيسي ---
 st.markdown("""
 <div style='text-align: center; margin-bottom: 30px;'>
     <h1 style='font-size: 2.5rem; color: #38bdf8; font-weight: 800;'>📖 المِعْرَبُ الذَّكِيّ</h1>
@@ -159,7 +207,6 @@ with tab1:
                 st.error("حدث خطأ أثناء معالجة النص. يرجى التحقق من الاتصال والمفتاح.")
             else:
                 st.markdown("### 🔤 تحليل المفردات والصرف لجميع الكلمات")
-                
                 words = result.words_analysis
                 cols = st.columns(2)
                 
@@ -203,12 +250,10 @@ with tab2:
                 try:
                     gemini_client = genai.Client(api_key=GEMINI_API_KEY)
                     prompt = f"{LESSON_GENERATOR_PROMPT}\n\nقم بإعداد خطة درس متكاملة ومفصلة حول موضوع: {lesson_topic}"
-                    
                     response = gemini_client.models.generate_content(
                         model=MODEL_NAME,
                         contents=prompt,
                     )
-                    
                     lesson_content = response.text
                     filename = f"درس_{lesson_topic.replace(' ', '_')}.docx"
                     file_path = create_formatted_lesson_docx(lesson_topic, lesson_content, filename)
@@ -267,7 +312,7 @@ with tab3:
                     except Exception as e:
                         st.error(f"حدث خطأ: {e}")
 
-    # --- الخدمة الثانية: الاختبار والتصحيح التلقائي المطور ---
+    # --- الخدمة الثانية: الاختبار والتصحيح التلقائي ---
     else:
         st.markdown("### 📝 ورقة امتحانية تفاعلية")
         
@@ -283,7 +328,6 @@ with tab3:
                         contents=exam_query,
                     )
                     
-                    # تنظيف النص واستخراج الـ JSON
                     raw_text = response.text.replace("```json", "").replace("```", "").strip()
                     exam_data = json.loads(raw_text)
                     
@@ -292,11 +336,9 @@ with tab3:
                 except Exception as e:
                     st.error("حدث خطأ أثناء توليد الاختبار. يرجى الضغط على زر التوليد مرة أخرى.")
 
-        # عرض الورقة الامتحانية إن كانت متوفرة
         if "exam_data" in st.session_state:
             exam_data = st.session_state["exam_data"]
             
-            # 1. عرض الأبيات الشعرية بأسلوب رسمي
             st.markdown(f"""
             <div style="background-color: #1e293b; border-right: 5px solid #2563eb; padding: 18px; border-radius: 10px; margin-bottom: 25px;">
                 <h4 style="color: #38bdf8; margin-bottom: 10px;">📜 اقرأ الأبيات الآتية ثم أجب عن الأسئلة:</h4>
@@ -306,8 +348,6 @@ with tab3:
             
             st.markdown("### ✍️ الأسئلة والإجابات:")
             
-            # 2. عرض كل سؤال وحقل إجابته الخاص
-            user_answers = {}
             for q in exam_data.get("questions", []):
                 q_id = q["id"]
                 st.markdown(f"**س {q_id}: {q['text']}**")
@@ -318,23 +358,21 @@ with tab3:
                     placeholder="اكتب إجابتك هنا..."
                 )
                 
-                # زر تأكيد الإجابة لكل سؤال
                 if st.button(f"تأكيد إجابة السؤال ({q_id}) ✅", key=f"btn_confirm_{q_id}"):
+                    if "confirmed_answers" not in st.session_state:
+                        st.session_state["confirmed_answers"] = {}
                     st.session_state["confirmed_answers"][q_id] = ans
                     st.success(f"تم تثبيت إجابة السؤال {q_id} بنجاح!")
                 
                 if q_id in st.session_state.get("confirmed_answers", {}):
-                    st.caption(f"📌 الإجابة المتبتة: {st.session_state['confirmed_answers'][q_id]}")
+                    st.caption(f"📌 الإجابة المثبتة: {st.session_state['confirmed_answers'][q_id]}")
                     
                 st.markdown("---")
             
-            # 3. زر التصحيح النهائي الشامل
             if st.button("⚖️ تصحيح نموذج الامتحان وإظهار العلامة النهائية", key="btn_grade_all"):
-                # تجميع كافة الإجابات المكتوبة
                 all_answers_summary = ""
                 for q in exam_data.get("questions", []):
                     q_id = q["id"]
-                    # أخذ الإجابة المؤكدة أو المكتوبة
                     final_ans = st.session_state.get("confirmed_answers", {}).get(q_id, st.session_state.get(f"input_q_{q_id}", "لم يجب"))
                     all_answers_summary += f"السؤال {q_id}: {q['text']}\nإجابة الطالب: {final_ans}\n\n"
                 
@@ -366,7 +404,7 @@ with tab3:
                     except Exception as e:
                         st.error(f"حدث خطأ أثناء إجراء التصحيح: {e}")
 
-# --- 4. التوقيع ---
+# --- 5. التوقيع ---
 st.markdown("""
 <div class='footer-container'>
     <p>تصميم وتطوير: <b>مهيدي الخالدي</b> | <a href='mailto:alkhaldimhedy@gmail.com'>alkhaldimhedy@gmail.com</a></p>
