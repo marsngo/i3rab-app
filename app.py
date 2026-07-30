@@ -308,16 +308,16 @@ with tab3:
                             model=MODEL_NAME,
                             contents=query,
                         )
-                        st.markdown(response.text)
+                        st.markdown(f"<div style='direction: rtl; text-align: right;'>{response.text}</div>", unsafe_allow_html=True)
                     except Exception as e:
                         st.error(f"حدث خطأ: {e}")
 
-    # --- الخدمة الثانية: الاختبار والتصحيح التلقائي ---
+    # --- الخدمة الثانية: الاختبار والتصحيح التلقائي الشامل ---
     else:
-        st.markdown("### 📝 ورقة امتحانية تفاعلية")
+        st.markdown("### 📝 ورقة امتحانية تفاعلية شاملة (تطابق الامتحان النهائي)")
         
-        if st.button("توليد نموذج امتحاني جديد 🎲", key="btn_gen_exam"):
-            with st.spinner("جاري صياغة ورقة الاختبار والأسئلة الوزارية..."):
+        if st.button("توليد نموذج امتحاني شامل 🎲", key="btn_gen_exam"):
+            with st.spinner("جاري صياغة ورقة الاختبار الوزارية مع سؤال الموضوع..."):
                 try:
                     import json
                     gemini_client = genai.Client(api_key=GEMINI_API_KEY)
@@ -339,23 +339,42 @@ with tab3:
         if "exam_data" in st.session_state:
             exam_data = st.session_state["exam_data"]
             
+            # عرض الأبيات بصياغة وزراية مع ضمان اتجاه اليمين
             st.markdown(f"""
-            <div style="background-color: #1e293b; border-right: 5px solid #2563eb; padding: 18px; border-radius: 10px; margin-bottom: 25px;">
-                <h4 style="color: #38bdf8; margin-bottom: 10px;">📜 اقرأ الأبيات الآتية ثم أجب عن الأسئلة:</h4>
-                <p style="font-size: 1.25rem; line-height: 2; white-space: pre-line; color: #f8fafc;">{exam_data.get('poem', '')}</p>
+            <div style="background-color: #1e293b; border-right: 5px solid #2563eb; padding: 20px; border-radius: 10px; margin-bottom: 25px; direction: rtl; text-align: right;">
+                <h4 style="color: #38bdf8; margin-bottom: 12px; font-weight: 800;">📜 النص الشعري النهائي للشهادة:</h4>
+                <p style="font-size: 1.3rem; line-height: 2.2; white-space: pre-line; color: #f8fafc; font-weight: 600;">{exam_data.get('poem', '')}</p>
             </div>
             """, unsafe_allow_html=True)
             
-            st.markdown("### ✍️ الأسئلة والإجابات:")
+            st.markdown("<h3 style='direction: rtl; text-align: right;'>✍️ الأسئلة والإجابات المطلوبة:</h3>", unsafe_allow_html=True)
             
+            current_section = ""
             for q in exam_data.get("questions", []):
                 q_id = q["id"]
-                st.markdown(f"**س {q_id}: {q['text']}**")
+                section_title = q.get("section", "أسئلة ورقة الامتحان")
                 
-                ans = st.text_input(
+                # عرض عنوان القيمة أو القسم إن تغير
+                if section_title != current_section:
+                    current_section = section_title
+                    st.markdown(f"<h4 style='color: #facc15; direction: rtl; text-align: right; margin-top: 20px;'>📌 {current_section}</h4>", unsafe_allow_html=True)
+                
+                # عرض نص السؤال بالكامل ومحاذاته لليمين
+                st.markdown(f"""
+                <div style="direction: rtl; text-align: right; font-size: 1.15rem; font-weight: 700; color: #93c5fd; margin-bottom: 8px;">
+                    س {q_id}: {q['text']}
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # حقل كتابة الموضوع أو الإجابة (موسع لسؤال الموضوع)
+                is_essay = "التعبير" in section_title or "الموضوع" in q['text']
+                height_val = 180 if is_essay else 80
+                
+                ans = st.text_area(
                     f"إجابتك على السؤال ({q_id}):",
                     key=f"input_q_{q_id}",
-                    placeholder="اكتب إجابتك هنا..."
+                    placeholder="اكتب الموضوع أو إجابة السؤال هنا..." if is_essay else "اكتب الإجابة المفصلة هنا...",
+                    height=height_val
                 )
                 
                 if st.button(f"تأكيد إجابة السؤال ({q_id}) ✅", key=f"btn_confirm_{q_id}"):
@@ -369,14 +388,14 @@ with tab3:
                     
                 st.markdown("---")
             
-            if st.button("⚖️ تصحيح نموذج الامتحان وإظهار العلامة النهائية", key="btn_grade_all"):
+            if st.button("⚖️ تصحيح نموذج الامتحان وإظهار العلامة الكلية والموضوع", key="btn_grade_all"):
                 all_answers_summary = ""
                 for q in exam_data.get("questions", []):
                     q_id = q["id"]
                     final_ans = st.session_state.get("confirmed_answers", {}).get(q_id, st.session_state.get(f"input_q_{q_id}", "لم يجب"))
-                    all_answers_summary += f"السؤال {q_id}: {q['text']}\nإجابة الطالب: {final_ans}\n\n"
+                    all_answers_summary += f"السؤال {q_id} ({q.get('section', '')}): {q['text']}\nإجابة الطالب:\n{final_ans}\n\n"
                 
-                with st.spinner("جاري تقييم الورقة حسب سلم التصحيح الوزاري الرسمية..."):
+                with st.spinner("جاري تقييم الورقة وموضوع التعبير حسب سلم التصحيح الوزاري..."):
                     try:
                         gemini_client = genai.Client(api_key=GEMINI_API_KEY)
                         eval_prompt = f"""
@@ -385,13 +404,14 @@ with tab3:
                         النص الشعري:
                         {exam_data.get('poem', '')}
                         
-                        الأسئلة وإجابات الطالب:
+                        الأسئلة وإجابات الطالب (تتضمن الأجزاء النحوية والفكرية وسؤال الموضوع):
                         {all_answers_summary}
                         
                         قم بتقديم تقرير تصحيح رسمي يحتوي على:
-                        1. العلامة الكلية المقدرة (مثلاً من 60 أو من 20).
-                        2. تصحيح كل سؤال على حدة مع بيان الأخطاء والجواب النموذجي المعتمد.
-                        3. نصائح سريعة للطالب.
+                        1. العلامة الكلية المقدرة من 60 (للبكالوريا العلمي/الأدبي) أو من 40 (للتاسع).
+                        2. تقييم مفصل لسؤال الموضوع الأدبي/الاجباري (المقدمة، الشواهد والاستشهاد، الربط، الخاتمة).
+                        3. تصحيح بقية الأسئلة سؤالاً بسؤال مع توضيح الأخطاء والإجابة السليمة المعتمدة في سلم الدرجات.
+                        4. نصائح توجيهية نهائية.
                         """
                         
                         response = gemini_client.models.generate_content(
@@ -399,8 +419,8 @@ with tab3:
                             contents=eval_prompt,
                         )
                         
-                        st.markdown("## 📊 نتيجة التصحيح وتقييم الأداء:")
-                        st.markdown(response.text)
+                        st.markdown("<h2 style='direction: rtl; text-align: right;'>📊 نتيجة التصحيح وتقييم الامتحان:</h2>", unsafe_allow_html=True)
+                        st.markdown(f"<div style='direction: rtl; text-align: right;'>{response.text}</div>", unsafe_allow_html=True)
                     except Exception as e:
                         st.error(f"حدث خطأ أثناء إجراء التصحيح: {e}")
 
