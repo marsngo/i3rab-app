@@ -5,7 +5,12 @@ from google import genai
 from pydantic import BaseModel, Field
 from typing import List, Optional
 from config import API_KEYS, AVAILABLE_MODELS
-from prompts.system_prompts import SYSTEM_PROMPT
+
+# --- النص التوجيهي للنظام (مدمج مباشرة لمنع مشاكل الاستيراد) ---
+SYSTEM_PROMPT = """
+أنت خبير ونحوي متخصص في اللغة العربية والإعراب التفصيلي، ومكلف بتحليل النصوص والنصوص القرآنية بدقة عالية.
+قم بتحليل النص المدخل وإعرابه مفردات وجلماً، مع توضيح الصرف والجذور والأوزان بدقة متناهية.
+"""
 
 # --- نماذج البيانات (Pydantic Models) ---
 class ParsingInfo(BaseModel):
@@ -47,9 +52,9 @@ def generate_content_with_fallback(prompt: str) -> str:
     تستدعي نماذج Gemini المتاحة بالتتابع مع تدوير المفاتيح.
     إذا فشل نموذج بـ 404 أو 429، تنتقل تلقائياً للنموذج أو المفتاح التالي.
     """
-    valid_keys = [k for k in API_KEYS if k.strip()]
+    valid_keys = [k for k in API_KEYS if k and k.strip()]
     if not valid_keys:
-        raise Exception("لم يتم العثور على أي مفتاح API صالح في ملف config.py")
+        raise Exception("لم يتم العثور على أي مفتاح API صالح. يرجى إضافته في Streamlit Secrets أو config.py")
 
     last_error = None
 
@@ -73,7 +78,7 @@ def analyze_arabic_text(text: str) -> Optional[TextAnalysisResponse]:
     """
     تحليل النص النحوي باستخدام النظام الاحتياطي للحصول على نتيجة Structured JSON
     """
-    valid_keys = [k for k in API_KEYS if k.strip()]
+    valid_keys = [k for k in API_KEYS if k and k.strip()]
     if not valid_keys:
         return None
 
