@@ -302,4 +302,4 @@ with tab3:
                     exam_query = f"{SYRIAN_EXAM_PROMPT}\n\nقم بصياغة نموذج امتحاني لطلاب {grade} ({branch}). أخرج النتيجة بتنسيق JSON فقط."
                     response_text = generate_content_with_fallback(exam_query)
                     
-                    raw_text = response_text.replace("```json", "").replace("
+                   raw_text = response_text.replace("```json", "").replace("```", "").strip()
