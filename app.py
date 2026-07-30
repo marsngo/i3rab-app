@@ -1,10 +1,8 @@
 import streamlit as st
 import json
 import os
-from engine import analyze_arabic_text
+from engine import analyze_arabic_text, generate_content_with_fallback
 from lesson_generator import create_formatted_lesson_docx
-from config import GEMINI_API_KEY, MODEL_NAME
-from google import genai
 from prompts.system_prompts import LESSON_GENERATOR_PROMPT
 from prompts.syrian_curriculum import SYRIAN_CURRICULUM_PROMPT, SYRIAN_EXAM_PROMPT
 from syrian_data import SYRIAN_9TH_CURRICULUM, SYRIAN_BAC_CURRICULUM
@@ -173,7 +171,7 @@ with tab1:
                 result = analyze_arabic_text(input_text)
                 
             if not result:
-                st.error("حدث خطأ أثناء معالجة النص. يرجى التحقق من الاتصال والمفتاح.")
+                st.error("حدث خطأ أثناء معالجة النص. يرجى التحقق من المفتاح أو الاتصال.")
             else:
                 st.markdown("### 🔤 تحليل المفردات والصرف لجميع الكلمات")
                 words = result.words_analysis
@@ -217,13 +215,9 @@ with tab2:
         else:
             with st.spinner("جاري صياغة خطة الدرس..."):
                 try:
-                    gemini_client = genai.Client(api_key=GEMINI_API_KEY)
                     prompt = f"{LESSON_GENERATOR_PROMPT}\n\nقم بإعداد خطة درس متكاملة ومفصلة حول موضوع: {lesson_topic}"
-                    response = gemini_client.models.generate_content(
-                        model=MODEL_NAME,
-                        contents=prompt,
-                    )
-                    lesson_content = response.text
+                    lesson_content = generate_content_with_fallback(prompt)
+                    
                     filename = f"درس_{lesson_topic.replace(' ', '_')}.docx"
                     file_path = create_formatted_lesson_docx(lesson_topic, lesson_content, filename)
                     
@@ -258,15 +252,13 @@ with tab3:
     with col_branch:
         branch = st.selectbox("الفرع (للبكالوريا):", ["العلمي", "الأدبي"]) if grade == "الثالث الثانوي (البكالوريا)" else "عام"
 
-    # --- دالة مساعدة لجلب النص المفرغ تلقائياً من الكتاب ---
+    # دالة مساعدة لجلب النص المفرغ تلقائياً من الكتاب
     def get_extracted_lesson_text(lesson_title):
         json_path = os.path.join("data", "grade9_texts.json")
         if os.path.exists(json_path):
             try:
                 with open(json_path, "r", encoding="utf-8") as f:
                     extracted_data = json.load(f)
-                    
-                # البحث عن أقرب تطابق للعنوان داخل النص المفرغ
                 for key, val in extracted_data.items():
                     if lesson_title in key or key in lesson_title:
                         return val.get("raw_text", "")
@@ -274,164 +266,40 @@ with tab3:
                 pass
         return None
 
-    # --- الخدمة الأولى: شرح الدرس مقسم حسب الوحدات ---
+    # الخدمة الأولى: شرح الدرس
     if sub_mode == "📖 شرح درس وتطبيقاته من المنهاج":
         curriculum_data = SYRIAN_9TH_CURRICULUM if grade == "الصف التاسع الإعدادي" else SYRIAN_BAC_CURRICULUM
         
         col_unit, col_lesson = st.columns(2)
-        
         with col_unit:
             selected_unit = st.selectbox("اختر الوحدة / القسم من الكتاب:", list(curriculum_data.keys()))
-            
         with col_lesson:
             lessons_in_unit = curriculum_data[selected_unit]
             selected_lesson = st.selectbox("اختر الدرس المطلوب الشرح عنه:", lessons_in_unit)
             
         if st.button("عرض الشرح والشواهد الامتحانية 📚", key="btn_syria_explain"):
-            with st.spinner("جاري استخراج شرح الدرس والشواهد المعتمدة من كتاب الوزارة..."):
+            with st.spinner("جاري استخراج شرح الدرس والشواهد المعتمدة..."):
                 try:
-                    # جلب النص المفرغ إن وجد (خصوصاً للتاسع)
                     original_text = get_extracted_lesson_text(selected_lesson) if grade == "الصف التاسع الإعدادي" else None
-                    
                     context_prompt = ""
                     if original_text:
                         context_prompt = f"\n\nملاحظة هامّة: استخدم النص المعتمد حرفياً من كتاب الوزارة السوري الآتي ولا تخمّن أبياتاً خارجية:\n'''\n{original_text}\n'''"
 
-                    gemini_client = genai.Client(api_key=GEMINI_API_KEY)
                     query = f"{SYRIAN_CURRICULUM_PROMPT}\n\nالمرحلة: {grade} ({branch})\nالوحدة: {selected_unit}\nالدرس/القصيدة: {selected_lesson}{context_prompt}\n\nقدم شرحاً شاملاً للدرس يتضمن: القاعدة التفصيلية، الشواهد من أسطر/قصائد الكتاب، الإعراب النموذجي للكلمات الرئيسية، وطريقة السؤال الصادرة في الامتحان الوزاري وكيفية الإجابة عليه."
                     
-                    response = gemini_client.models.generate_content(
-                        model=MODEL_NAME,
-                        contents=query,
-                    )
-                    st.markdown(f"<div style='direction: rtl; text-align: right;'>{response.text}</div>", unsafe_allow_html=True)
+                    response_text = generate_content_with_fallback(query)
+                    st.markdown(f"<div style='direction: rtl; text-align: right;'>{response_text}</div>", unsafe_allow_html=True)
                 except Exception as e:
                     st.error(f"حدث خطأ: {e}")
 
-    # --- الخدمة الثانية: الاختبار والنموذج الامتحاني الشامل ---
+    # الخدمة الثانية: الاختبار والنموذج الامتحاني الشامل
     else:
         st.markdown("### 📝 ورقة امتحانية تفاعلية شاملة (تطابق الامتحان النهائي)")
         
         if st.button("توليد نموذج امتحاني شامل 🎲", key="btn_gen_exam"):
-            with st.spinner("جاري صياغة ورقة الاختبار والقصيدة بالعمودين الشعرية..."):
+            with st.spinner("جاري صياغة ورقة الاختبار والقصيدة..."):
                 try:
-                    gemini_client = genai.Client(api_key=GEMINI_API_KEY)
                     exam_query = f"{SYRIAN_EXAM_PROMPT}\n\nقم بصياغة نموذج امتحاني لطلاب {grade} ({branch}). أخرج النتيجة بتنسيق JSON فقط."
+                    response_text = generate_content_with_fallback(exam_query)
                     
-                    response = gemini_client.models.generate_content(
-                        model=MODEL_NAME,
-                        contents=exam_query,
-                    )
-                    
-                    raw_text = response.text.replace("```json", "").replace("```", "").strip()
-                    exam_data = json.loads(raw_text)
-                    
-                    st.session_state["exam_data"] = exam_data
-                    st.session_state["confirmed_answers"] = {}
-                except Exception as e:
-                    st.error("حدث خطأ أثناء توليد الاختبار. يرجى الضغط على زر التوليد مرة أخرى.")
-
-        if "exam_data" in st.session_state:
-            exam_data = st.session_state["exam_data"]
-            
-            # 1. عرض الأبيات العمودية باستخدام Streamlit Columns لضمان عدم انكسار الـ HTML
-            st.markdown("<h4 style='color: #38bdf8; margin-bottom: 16px; font-weight: 800; text-align: right;'>📜 النص الشعري المقرر للشهادة:</h4>", unsafe_allow_html=True)
-            
-            poem_container = st.container()
-            with poem_container:
-                poem_lines = exam_data.get('poem', [])
-                if isinstance(poem_lines, list):
-                    for verse in poem_lines:
-                        first_part = verse.get('first', '') if isinstance(verse, dict) else str(verse)
-                        second_part = verse.get('second', '') if isinstance(verse, dict) else ""
-                        
-                        col_first, col_second = st.columns(2)
-                        with col_first:
-                            st.markdown(f"<div style='text-align: right; font-size: 1.2rem; font-weight: 700; color: #f8fafc; padding: 4px 0;'>{first_part}</div>", unsafe_allow_html=True)
-                        with col_second:
-                            st.markdown(f"<div style='text-align: left; font-size: 1.2rem; font-weight: 700; color: #38bdf8; padding: 4px 0;'>{second_part}</div>", unsafe_allow_html=True)
-                        st.markdown("<hr style='border: 0.5px dashed #334155; margin: 4px 0;'>", unsafe_allow_html=True)
-            
-            st.markdown("<h3 style='direction: rtl; text-align: right; margin-top: 30px;'>✍️ الأسئلة والإجابات المطلوبة:</h3>", unsafe_allow_html=True)
-            
-            # 2. عرض الأسئلة بشكل منفصل لكل منها حقل ونص وزر تأكيد مستقل
-            current_section = ""
-            for q in exam_data.get("questions", []):
-                q_id = q["id"]
-                section_title = q.get("section", "أسئلة ورقة الامتحان")
-                
-                if section_title != current_section:
-                    current_section = section_title
-                    st.markdown(f"<h4 style='color: #facc15; direction: rtl; text-align: right; margin-top: 25px;'>📌 {current_section}</h4>", unsafe_allow_html=True)
-                
-                st.markdown(f"""
-                <div style="direction: rtl; text-align: right; font-size: 1.15rem; font-weight: 700; color: #93c5fd; margin-bottom: 8px; margin-top: 10px;">
-                    س {q_id}: {q['text']}
-                </div>
-                """, unsafe_allow_html=True)
-                
-                is_essay = "التعبير" in section_title or "الموضوع" in q['text']
-                height_val = 180 if is_essay else 90
-                
-                ans = st.text_area(
-                    f"إجابتك على السؤال ({q_id}):",
-                    key=f"input_q_{q_id}",
-                    placeholder="اكتب الموضوع بالكامل هنا..." if is_essay else "اكتب الإجابة المفصلة لهذا السؤال هنا...",
-                    height=height_val
-                )
-                
-                if st.button(f"تأكيد إجابة السؤال ({q_id}) ✅", key=f"btn_confirm_{q_id}"):
-                    if "confirmed_answers" not in st.session_state:
-                        st.session_state["confirmed_answers"] = {}
-                    st.session_state["confirmed_answers"][q_id] = ans
-                    st.success(f"تم حفظ إجابة السؤال {q_id} بنجاح!")
-                
-                if q_id in st.session_state.get("confirmed_answers", {}):
-                    st.markdown(f"<div style='direction: rtl; text-align: right; color: #4ade80; font-weight: 700; margin-top: 5px;'>📌 الإجابة المثبتة للسؤال ({q_id}): {st.session_state['confirmed_answers'][q_id]}</div>", unsafe_allow_html=True)
-                    
-                st.markdown("<hr style='border: 1px dashed #334155; margin: 15px 0;'>", unsafe_allow_html=True)
-            
-            # 3. زر التصحيح الشامل
-            if st.button("⚖️ تصحيح نموذج الامتحان وإظهار العلامة الكلية والموضوع", key="btn_grade_all"):
-                all_answers_summary = ""
-                for q in exam_data.get("questions", []):
-                    q_id = q["id"]
-                    final_ans = st.session_state.get("confirmed_answers", {}).get(q_id, st.session_state.get(f"input_q_{q_id}", "لم يجب"))
-                    all_answers_summary += f"السؤال {q_id} ({q.get('section', '')}): {q['text']}\nإجابة الطالب:\n{final_ans}\n\n"
-                
-                with st.spinner("جاري تقييم الورقة وموضوع التعبير حسب سلم التصحيح الوزاري..."):
-                    try:
-                        gemini_client = genai.Client(api_key=GEMINI_API_KEY)
-                        eval_prompt = f"""
-                        أنت مصحح وزاري معتمد لمادة اللغة العربية في سوريا.
-                        المنهاج: {grade} ({branch})
-                        النص الشعري:
-                        {exam_data.get('poem', '')}
-                        
-                        الأسئلة وإجابات الطالب:
-                        {all_answers_summary}
-                        
-                        قم بتقديم تقرير تصحيح رسمي يحتوي على:
-                        1. العلامة الكلية المقدرة.
-                        2. تقييم مفصل لسؤال الموضوع الأدبي/الاجباري.
-                        3. تصحيح بقية الأسئلة سؤالاً بسؤال مع توضيح الأخطاء والإجابة السليمة.
-                        4. نصائح توجيهية نهائية.
-                        """
-                        
-                        response = gemini_client.models.generate_content(
-                            model=MODEL_NAME,
-                            contents=eval_prompt,
-                        )
-                        
-                        st.markdown("<h2 style='direction: rtl; text-align: right;'>📊 نتيجة التصحيح وتقييم الامتحان:</h2>", unsafe_allow_html=True)
-                        st.markdown(f"<div style='direction: rtl; text-align: right;'>{response.text}</div>", unsafe_allow_html=True)
-                    except Exception as e:
-                        st.error(f"حدث خطأ أثناء إجراء التصحيح: {e}")
-
-# --- 4. التوقيع ---
-st.markdown("""
-<div class='footer-container'>
-    <p>تصميم وتطوير: <b>مهيدي الخالدي</b> | <a href='mailto:alkhaldimhedy@gmail.com'>alkhaldimhedy@gmail.com</a></p>
-    <p>جميع الحقوق محفوظة © 2026 | الإصدار: <b>v1.1.0</b></p>
-</div>
-""", unsafe_allow_html=True)
+                    raw_text = response_text.replace("```json", "").replace("
