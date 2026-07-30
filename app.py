@@ -1,11 +1,13 @@
 import streamlit as st
 import json
+import os
 from engine import analyze_arabic_text
 from lesson_generator import create_formatted_lesson_docx
 from config import GEMINI_API_KEY, MODEL_NAME
 from google import genai
 from prompts.system_prompts import LESSON_GENERATOR_PROMPT
 from prompts.syrian_curriculum import SYRIAN_CURRICULUM_PROMPT, SYRIAN_EXAM_PROMPT
+from syrian_data import SYRIAN_9TH_CURRICULUM, SYRIAN_BAC_CURRICULUM
 
 # --- 1. إعدادات الصفحة ---
 st.set_page_config(
@@ -15,41 +17,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- 2. بيانات دروس المنهاج السوري ---
-SYRIAN_BAC_LESSONS = [
-    "المفعول المطلق والمفعول لأجله",
-    "المفعول فيه (الظرف)",
-    "الحال والأحكام المتعلقة بها",
-    "التمييز وأنواعه",
-    "الاستثناء وأحكامه",
-    "المنادى وأحكام إعرابه",
-    "أسلوب الشرط (النتائج والأدوات)",
-    "أسلوب التعجب وأحكامه",
-    "أسلوب المدح والذم",
-    "أحكام العدد والمعدود",
-    "قواعد الإعلال (بالقلب وبالحذف)",
-    "قواعد الإبدال",
-    "المشتقات وإعمالها (اسم الفاعل، المفعول، المشبهة)",
-    "العروض: البحر البسيط والكامل والخفيف",
-    "درس آخر (كتابة يدوية)..."
-]
-
-SYRIAN_9TH_LESSONS = [
-    "الأفعال الخمسة وإعرابها",
-    "الأفعال الناقصة والأفعال التامة",
-    "المفعول به والمفعول فيه",
-    "المفعول لأجله والمفعول المطلق",
-    "المبتدأ والخبر ونواسخهما",
-    "المنادى وأنواعه",
-    "النعت (الصفة) والعطف",
-    "التوكيد والبدل",
-    "الاسم الجامد والاسم المشتق",
-    "الميزان الصرفي والصحيح والمعتل",
-    "العروض: البحر الطويل والرجز",
-    "درس آخر (كتابة يدوية)..."
-]
-
-# --- 3. تنسيق الـ CSS المحسّن بالكامل ---
+# --- 2. تنسيق الـ CSS المحسّن بالكامل ---
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap');
@@ -161,48 +129,6 @@ textarea, input[type="text"], div[data-baseweb="select"] > div {
     font-size: 0.95rem;
 }
 
-/* تنسيق الأبيات العمودية (الصدر والعجز) */
-.poem-box {
-    background-color: #1e293b;
-    border-right: 5px solid #2563eb;
-    padding: 24px;
-    border-radius: 12px;
-    margin-bottom: 30px;
-    direction: rtl;
-}
-
-.poem-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 14px;
-    gap: 20px;
-    border-bottom: 1px dashed #334155;
-    padding-bottom: 8px;
-}
-
-.poem-row:last-child {
-    border-bottom: none;
-    margin-bottom: 0;
-    padding-bottom: 0;
-}
-
-.hemistich-first {
-    flex: 1;
-    text-align: right;
-    font-size: 1.25rem;
-    font-weight: 700;
-    color: #f8fafc;
-}
-
-.hemistich-second {
-    flex: 1;
-    text-align: left;
-    font-size: 1.25rem;
-    font-weight: 700;
-    color: #38bdf8;
-}
-
 .footer-container {
     margin-top: 50px;
     padding: 20px;
@@ -220,7 +146,7 @@ textarea, input[type="text"], div[data-baseweb="select"] > div {
 </style>
 """, unsafe_allow_html=True)
 
-# --- 4. الهيدر الرئيسي ---
+# --- 3. الهيدر الرئيسي ---
 st.markdown("""
 <div style='text-align: center; margin-bottom: 30px;'>
     <h1 style='font-size: 2.5rem; color: #38bdf8; font-weight: 800;'>📖 المِعْرَبُ الذَّكِيّ</h1>
@@ -328,34 +254,61 @@ with tab3:
     
     col_grade, col_branch = st.columns(2)
     with col_grade:
-        grade = st.selectbox("المرحلة الدراسية:", ["الثالث الثانوي (البكالوريا)", "الصف التاسع الإعدادي"])
+        grade = st.selectbox("المرحلة الدراسية:", ["الصف التاسع الإعدادي", "الثالث الثانوي (البكالوريا)"])
     with col_branch:
         branch = st.selectbox("الفرع (للبكالوريا):", ["العلمي", "الأدبي"]) if grade == "الثالث الثانوي (البكالوريا)" else "عام"
 
-    # --- الخدمة الأولى: شرح الدرس ---
+    # --- دالة مساعدة لجلب النص المفرغ تلقائياً من الكتاب ---
+    def get_extracted_lesson_text(lesson_title):
+        json_path = os.path.join("data", "grade9_texts.json")
+        if os.path.exists(json_path):
+            try:
+                with open(json_path, "r", encoding="utf-8") as f:
+                    extracted_data = json.load(f)
+                    
+                # البحث عن أقرب تطابق للعنوان داخل النص المفرغ
+                for key, val in extracted_data.items():
+                    if lesson_title in key or key in lesson_title:
+                        return val.get("raw_text", "")
+            except Exception:
+                pass
+        return None
+
+    # --- الخدمة الأولى: شرح الدرس مقسم حسب الوحدات ---
     if sub_mode == "📖 شرح درس وتطبيقاته من المنهاج":
-        lessons_list = SYRIAN_BAC_LESSONS if grade == "الثالث الثانوي (البكالوريا)" else SYRIAN_9TH_LESSONS
-        selected_lesson = st.selectbox("اختر الدرس المقرر من القائمة:", lessons_list)
+        curriculum_data = SYRIAN_9TH_CURRICULUM if grade == "الصف التاسع الإعدادي" else SYRIAN_BAC_CURRICULUM
         
-        topic = st.text_input("اكتب اسم الدرس المطلوب:") if selected_lesson == "درس آخر (كتابة يدوية)..." else selected_lesson
+        col_unit, col_lesson = st.columns(2)
+        
+        with col_unit:
+            selected_unit = st.selectbox("اختر الوحدة / القسم من الكتاب:", list(curriculum_data.keys()))
+            
+        with col_lesson:
+            lessons_in_unit = curriculum_data[selected_unit]
+            selected_lesson = st.selectbox("اختر الدرس المطلوب الشرح عنه:", lessons_in_unit)
             
         if st.button("عرض الشرح والشواهد الامتحانية 📚", key="btn_syria_explain"):
-            if not topic.strip():
-                st.warning("يرجى اختيار أو كتابة اسم الدرس.")
-            else:
-                with st.spinner("جاري استخراج شرح الدرس والشواهد المعتمدة من كتاب الوزارة..."):
-                    try:
-                        gemini_client = genai.Client(api_key=GEMINI_API_KEY)
-                        query = f"{SYRIAN_CURRICULUM_PROMPT}\n\nالمرحلة: {grade} ({branch})\nاسم الدرس: {topic}\n\nيرجى تقديم شرح مفصل وشامل يتضمن: القاعدة، الشواهد من قصائد الكتاب، أمثلة معربة، وطريقة السؤال الصادرة في الامتحان الوزاري وكيفية الإجابة عليها."
-                        response = gemini_client.models.generate_content(
-                            model=MODEL_NAME,
-                            contents=query,
-                        )
-                        st.markdown(f"<div style='direction: rtl; text-align: right;'>{response.text}</div>", unsafe_allow_html=True)
-                    except Exception as e:
-                        st.error(f"حدث خطأ: {e}")
+            with st.spinner("جاري استخراج شرح الدرس والشواهد المعتمدة من كتاب الوزارة..."):
+                try:
+                    # جلب النص المفرغ إن وجد (خصوصاً للتاسع)
+                    original_text = get_extracted_lesson_text(selected_lesson) if grade == "الصف التاسع الإعدادي" else None
+                    
+                    context_prompt = ""
+                    if original_text:
+                        context_prompt = f"\n\nملاحظة هامّة: استخدم النص المعتمد حرفياً من كتاب الوزارة السوري الآتي ولا تخمّن أبياتاً خارجية:\n'''\n{original_text}\n'''"
 
-    # --- الخدمة الثانية: الاختبار والتصحيح التلقائي الشامل ---
+                    gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+                    query = f"{SYRIAN_CURRICULUM_PROMPT}\n\nالمرحلة: {grade} ({branch})\nالوحدة: {selected_unit}\nالدرس/القصيدة: {selected_lesson}{context_prompt}\n\nقدم شرحاً شاملاً للدرس يتضمن: القاعدة التفصيلية، الشواهد من أسطر/قصائد الكتاب، الإعراب النموذجي للكلمات الرئيسية، وطريقة السؤال الصادرة في الامتحان الوزاري وكيفية الإجابة عليه."
+                    
+                    response = gemini_client.models.generate_content(
+                        model=MODEL_NAME,
+                        contents=query,
+                    )
+                    st.markdown(f"<div style='direction: rtl; text-align: right;'>{response.text}</div>", unsafe_allow_html=True)
+                except Exception as e:
+                    st.error(f"حدث خطأ: {e}")
+
+    # --- الخدمة الثانية: الاختبار والنموذج الامتحاني الشامل ---
     else:
         st.markdown("### 📝 ورقة امتحانية تفاعلية شاملة (تطابق الامتحان النهائي)")
         
@@ -381,7 +334,7 @@ with tab3:
         if "exam_data" in st.session_state:
             exam_data = st.session_state["exam_data"]
             
-            # 1. عرض الأبيات العمودية باستخدام Streamlit Containers و Columns لضمان المحاذاة وعدم انكسار الكود
+            # 1. عرض الأبيات العمودية باستخدام Streamlit Columns لضمان عدم انكسار الـ HTML
             st.markdown("<h4 style='color: #38bdf8; margin-bottom: 16px; font-weight: 800; text-align: right;'>📜 النص الشعري المقرر للشهادة:</h4>", unsafe_allow_html=True)
             
             poem_container = st.container()
@@ -401,7 +354,7 @@ with tab3:
             
             st.markdown("<h3 style='direction: rtl; text-align: right; margin-top: 30px;'>✍️ الأسئلة والإجابات المطلوبة:</h3>", unsafe_allow_html=True)
             
-            # 2. عرض الأسئلة بشكل منفصل
+            # 2. عرض الأسئلة بشكل منفصل لكل منها حقل ونص وزر تأكيد مستقل
             current_section = ""
             for q in exam_data.get("questions", []):
                 q_id = q["id"]
@@ -475,7 +428,7 @@ with tab3:
                     except Exception as e:
                         st.error(f"حدث خطأ أثناء إجراء التصحيح: {e}")
 
-# --- 5. التوقيع ---
+# --- 4. التوقيع ---
 st.markdown("""
 <div class='footer-container'>
     <p>تصميم وتطوير: <b>مهيدي الخالدي</b> | <a href='mailto:alkhaldimhedy@gmail.com'>alkhaldimhedy@gmail.com</a></p>
