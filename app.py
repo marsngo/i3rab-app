@@ -302,4 +302,108 @@ with tab3:
                     exam_query = f"{SYRIAN_EXAM_PROMPT}\n\nقم بصياغة نموذج امتحاني لطلاب {grade} ({branch}). أخرج النتيجة بتنسيق JSON فقط."
                     response_text = generate_content_with_fallback(exam_query)
                     
-                   raw_text = response_text.replace("```json", "").replace("```", "").strip()
+                    raw_text = response_text.replace("```json", "").replace("```", "").strip()
+                    exam_data = json.loads(raw_text)
+                    
+                    st.session_state["exam_data"] = exam_data
+                    st.session_state["confirmed_answers"] = {}
+                except Exception as e:
+                    st.error("حدث خطأ أثناء توليد الاختبار. يرجى إعادة المحاولة.")
+
+        if "exam_data" in st.session_state:
+            exam_data = st.session_state["exam_data"]
+            
+            st.markdown("<h4 style='color: #38bdf8; margin-bottom: 16px; font-weight: 800; text-align: right;'>📜 النص الشعري المقرر للشهادة:</h4>", unsafe_allow_html=True)
+            
+            poem_container = st.container()
+            with poem_container:
+                poem_lines = exam_data.get('poem', [])
+                if isinstance(poem_lines, list):
+                    for verse in poem_lines:
+                        first_part = verse.get('first', '') if isinstance(verse, dict) else str(verse)
+                        second_part = verse.get('second', '') if isinstance(verse, dict) else ""
+                        
+                        col_first, col_second = st.columns(2)
+                        with col_first:
+                            st.markdown(f"<div style='text-align: right; font-size: 1.2rem; font-weight: 700; color: #f8fafc; padding: 4px 0;'>{first_part}</div>", unsafe_allow_html=True)
+                        with col_second:
+                            st.markdown(f"<div style='text-align: left; font-size: 1.2rem; font-weight: 700; color: #38bdf8; padding: 4px 0;'>{second_part}</div>", unsafe_allow_html=True)
+                        st.markdown("<hr style='border: 0.5px dashed #334155; margin: 4px 0;'>", unsafe_allow_html=True)
+            
+            st.markdown("<h3 style='direction: rtl; text-align: right; margin-top: 30px;'>✍️ الأسئلة والإجابات المطلوبة:</h3>", unsafe_allow_html=True)
+            
+            current_section = ""
+            for q in exam_data.get("questions", []):
+                q_id = q["id"]
+                section_title = q.get("section", "أسئلة ورقة الامتحان")
+                
+                if section_title != current_section:
+                    current_section = section_title
+                    st.markdown(f"<h4 style='color: #facc15; direction: rtl; text-align: right; margin-top: 25px;'>📌 {current_section}</h4>", unsafe_allow_html=True)
+                
+                st.markdown(f"""
+                <div style="direction: rtl; text-align: right; font-size: 1.15rem; font-weight: 700; color: #93c5fd; margin-bottom: 8px; margin-top: 10px;">
+                    س {q_id}: {q['text']}
+                </div>
+                """, unsafe_allow_html=True)
+                
+                is_essay = "التعبير" in section_title or "الموضوع" in q['text']
+                height_val = 180 if is_essay else 90
+                
+                ans = st.text_area(
+                    f"إجابتك على السؤال ({q_id}):",
+                    key=f"input_q_{q_id}",
+                    placeholder="اكتب الموضوع بالكامل هنا..." if is_essay else "اكتب الإجابة المفصلة لهذا السؤال هنا...",
+                    height=height_val
+                )
+                
+                if st.button(f"تأكيد إجابة السؤال ({q_id}) ✅", key=f"btn_confirm_{q_id}"):
+                    if "confirmed_answers" not in st.session_state:
+                        st.session_state["confirmed_answers"] = {}
+                    st.session_state["confirmed_answers"][q_id] = ans
+                    st.success(f"تم حفظ إجابة السؤال {q_id} بنجاح!")
+                
+                if q_id in st.session_state.get("confirmed_answers", {}):
+                    st.markdown(f"<div style='direction: rtl; text-align: right; color: #4ade80; font-weight: 700; margin-top: 5px;'>📌 الإجابة المثبتة للسؤال ({q_id}): {st.session_state['confirmed_answers'][q_id]}</div>", unsafe_allow_html=True)
+                    
+                st.markdown("<hr style='border: 1px dashed #334155; margin: 15px 0;'>", unsafe_allow_html=True)
+            
+            if st.button("⚖️ تصحيح نموذج الامتحان وإظهار العلامة الكلية والموضوع", key="btn_grade_all"):
+                all_answers_summary = ""
+                for q in exam_data.get("questions", []):
+                    q_id = q["id"]
+                    final_ans = st.session_state.get("confirmed_answers", {}).get(q_id, st.session_state.get(f"input_q_{q_id}", "لم يجب"))
+                    all_answers_summary += f"السؤال {q_id} ({q.get('section', '')}): {q['text']}\nإجابة الطالب:\n{final_ans}\n\n"
+                
+                with st.spinner("جاري تقييم الورقة وموضوع التعبير حسب سلم التصحيح الوزاري..."):
+                    try:
+                        eval_prompt = f"""
+                        أنت مصحح وزاري معتمد لمادة اللغة العربية في سوريا.
+                        المنهاج: {grade} ({branch})
+                        النص الشعري:
+                        {exam_data.get('poem', '')}
+                        
+                        الأسئلة وإجابات الطالب:
+                        {all_answers_summary}
+                        
+                        قم بتقديم تقرير تصحيح رسمي يحتوي على:
+                        1. العلامة الكلية المقدرة.
+                        2. تقييم مفصل لسؤال الموضوع الأدبي/الاجباري.
+                        3. تصحيح بقية الأسئلة سؤالاً بسؤال مع توضيح الأخطاء والإجابة السليمة.
+                        4. نصائح توجيهية نهائية.
+                        """
+                        
+                        response_text = generate_content_with_fallback(eval_prompt)
+                        
+                        st.markdown("<h2 style='direction: rtl; text-align: right;'>📊 نتيجة التصحيح وتقييم الامتحان:</h2>", unsafe_allow_html=True)
+                        st.markdown(f"<div style='direction: rtl; text-align: right;'>{response_text}</div>", unsafe_allow_html=True)
+                    except Exception as e:
+                        st.error(f"حدث خطأ أثناء إجراء التصحيح: {e}")
+
+# --- 4. التوقيع ---
+st.markdown("""
+<div class='footer-container'>
+    <p>تصميم وتطوير: <b>مهيدي الخالدي</b> | <a href='mailto:alkhaldimhedy@gmail.com'>alkhaldimhedy@gmail.com</a></p>
+    <p>جميع الحقوق محفوظة © 2026 | الإصدار: <b>v1.1.0</b></p>
+</div>
+""", unsafe_allow_html=True)
