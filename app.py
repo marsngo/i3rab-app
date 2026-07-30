@@ -1,4 +1,5 @@
 import streamlit as st
+import json
 from engine import analyze_arabic_text
 from lesson_generator import create_formatted_lesson_docx
 from config import GEMINI_API_KEY, MODEL_NAME
@@ -14,7 +15,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- 2. بيانات دروس المنهاج السوري (تعريف القوائم رئيسياً) ---
+# --- 2. بيانات دروس المنهاج السوري ---
 SYRIAN_BAC_LESSONS = [
     "المفعول المطلق والمفعول لأجله",
     "المفعول فيه (الظرف)",
@@ -48,7 +49,7 @@ SYRIAN_9TH_LESSONS = [
     "درس آخر (كتابة يدوية)..."
 ]
 
-# --- 3. تنسيق الـ CSS ---
+# --- 3. تنسيق الـ CSS المحسّن بالكامل ---
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap');
@@ -158,6 +159,48 @@ textarea, input[type="text"], div[data-baseweb="select"] > div {
     color: #facc15;
     margin-bottom: 4px;
     font-size: 0.95rem;
+}
+
+/* تنسيق الأبيات العمودية (الصدر والعجز) */
+.poem-box {
+    background-color: #1e293b;
+    border-right: 5px solid #2563eb;
+    padding: 24px;
+    border-radius: 12px;
+    margin-bottom: 30px;
+    direction: rtl;
+}
+
+.poem-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+    gap: 20px;
+    border-bottom: 1px dashed #334155;
+    padding-bottom: 8px;
+}
+
+.poem-row:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
+.hemistich-first {
+    flex: 1;
+    text-align: right;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #f8fafc;
+}
+
+.hemistich-second {
+    flex: 1;
+    text-align: left;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #38bdf8;
 }
 
 .footer-container {
@@ -317,9 +360,8 @@ with tab3:
         st.markdown("### 📝 ورقة امتحانية تفاعلية شاملة (تطابق الامتحان النهائي)")
         
         if st.button("توليد نموذج امتحاني شامل 🎲", key="btn_gen_exam"):
-            with st.spinner("جاري صياغة ورقة الاختبار الوزارية مع سؤال الموضوع..."):
+            with st.spinner("جاري صياغة ورقة الاختبار والقصيدة بالعمودين الشعرية..."):
                 try:
-                    import json
                     gemini_client = genai.Client(api_key=GEMINI_API_KEY)
                     exam_query = f"{SYRIAN_EXAM_PROMPT}\n\nقم بصياغة نموذج امتحاني لطلاب {grade} ({branch}). أخرج النتيجة بتنسيق JSON فقط."
                     
@@ -339,41 +381,48 @@ with tab3:
         if "exam_data" in st.session_state:
             exam_data = st.session_state["exam_data"]
             
-            # عرض الأبيات بصياغة وزراية مع ضمان اتجاه اليمين
-            st.markdown(f"""
-            <div style="background-color: #1e293b; border-right: 5px solid #2563eb; padding: 20px; border-radius: 10px; margin-bottom: 25px; direction: rtl; text-align: right;">
-                <h4 style="color: #38bdf8; margin-bottom: 12px; font-weight: 800;">📜 النص الشعري النهائي للشهادة:</h4>
-                <p style="font-size: 1.3rem; line-height: 2.2; white-space: pre-line; color: #f8fafc; font-weight: 600;">{exam_data.get('poem', '')}</p>
-            </div>
-            """, unsafe_allow_html=True)
+            # 1. عرض الأبيات العمودية
+            poem_html = "<div class='poem-box'><h4 style='color: #38bdf8; margin-bottom: 16px; font-weight: 800;'>📜 النص الشعري المقرر للشهادة:</h4>"
+            poem_lines = exam_data.get('poem', [])
+            
+            if isinstance(poem_lines, list):
+                for verse in poem_lines:
+                    first_part = verse.get('first', '') if isinstance(verse, dict) else str(verse)
+                    second_part = verse.get('second', '') if isinstance(verse, dict) else ""
+                    poem_html += f"""
+                    <div class="poem-row">
+                        <span class="hemistich-first">{first_part}</span>
+                        <span class="hemistich-second">{second_part}</span>
+                    </div>
+                    """
+            poem_html += "</div>"
+            st.markdown(poem_html, unsafe_allow_html=True)
             
             st.markdown("<h3 style='direction: rtl; text-align: right;'>✍️ الأسئلة والإجابات المطلوبة:</h3>", unsafe_allow_html=True)
             
+            # 2. عرض كل سؤال فرعي بحقل وزر تثبيت مستقلين
             current_section = ""
             for q in exam_data.get("questions", []):
                 q_id = q["id"]
                 section_title = q.get("section", "أسئلة ورقة الامتحان")
                 
-                # عرض عنوان القيمة أو القسم إن تغير
                 if section_title != current_section:
                     current_section = section_title
-                    st.markdown(f"<h4 style='color: #facc15; direction: rtl; text-align: right; margin-top: 20px;'>📌 {current_section}</h4>", unsafe_allow_html=True)
+                    st.markdown(f"<h4 style='color: #facc15; direction: rtl; text-align: right; margin-top: 25px;'>📌 {current_section}</h4>", unsafe_allow_html=True)
                 
-                # عرض نص السؤال بالكامل ومحاذاته لليمين
                 st.markdown(f"""
-                <div style="direction: rtl; text-align: right; font-size: 1.15rem; font-weight: 700; color: #93c5fd; margin-bottom: 8px;">
+                <div style="direction: rtl; text-align: right; font-size: 1.15rem; font-weight: 700; color: #93c5fd; margin-bottom: 8px; margin-top: 10px;">
                     س {q_id}: {q['text']}
                 </div>
                 """, unsafe_allow_html=True)
                 
-                # حقل كتابة الموضوع أو الإجابة (موسع لسؤال الموضوع)
                 is_essay = "التعبير" in section_title or "الموضوع" in q['text']
-                height_val = 180 if is_essay else 80
+                height_val = 180 if is_essay else 90
                 
                 ans = st.text_area(
                     f"إجابتك على السؤال ({q_id}):",
                     key=f"input_q_{q_id}",
-                    placeholder="اكتب الموضوع أو إجابة السؤال هنا..." if is_essay else "اكتب الإجابة المفصلة هنا...",
+                    placeholder="اكتب الموضوع بالكامل هنا..." if is_essay else "اكتب الإجابة المفصلة لهذا السؤال هنا...",
                     height=height_val
                 )
                 
@@ -381,13 +430,14 @@ with tab3:
                     if "confirmed_answers" not in st.session_state:
                         st.session_state["confirmed_answers"] = {}
                     st.session_state["confirmed_answers"][q_id] = ans
-                    st.success(f"تم تثبيت إجابة السؤال {q_id} بنجاح!")
+                    st.success(f"تم حفظ إجابة السؤال {q_id} بنجاح!")
                 
                 if q_id in st.session_state.get("confirmed_answers", {}):
-                    st.caption(f"📌 الإجابة المثبتة: {st.session_state['confirmed_answers'][q_id]}")
+                    st.markdown(f"<div style='direction: rtl; text-align: right; color: #4ade80; font-weight: 700; margin-top: 5px;'>📌 الإجابة المثبتة للسؤال ({q_id}): {st.session_state['confirmed_answers'][q_id]}</div>", unsafe_allow_html=True)
                     
-                st.markdown("---")
+                st.markdown("<hr style='border: 1px dashed #334155; margin: 15px 0;'>", unsafe_allow_html=True)
             
+            # 3. زر التصحيح الشامل
             if st.button("⚖️ تصحيح نموذج الامتحان وإظهار العلامة الكلية والموضوع", key="btn_grade_all"):
                 all_answers_summary = ""
                 for q in exam_data.get("questions", []):
@@ -404,13 +454,13 @@ with tab3:
                         النص الشعري:
                         {exam_data.get('poem', '')}
                         
-                        الأسئلة وإجابات الطالب (تتضمن الأجزاء النحوية والفكرية وسؤال الموضوع):
+                        الأسئلة وإجابات الطالب:
                         {all_answers_summary}
                         
                         قم بتقديم تقرير تصحيح رسمي يحتوي على:
-                        1. العلامة الكلية المقدرة من 60 (للبكالوريا العلمي/الأدبي) أو من 40 (للتاسع).
-                        2. تقييم مفصل لسؤال الموضوع الأدبي/الاجباري (المقدمة، الشواهد والاستشهاد، الربط، الخاتمة).
-                        3. تصحيح بقية الأسئلة سؤالاً بسؤال مع توضيح الأخطاء والإجابة السليمة المعتمدة في سلم الدرجات.
+                        1. العلامة الكلية المقدرة.
+                        2. تقييم مفصل لسؤال الموضوع الأدبي/الاجباري.
+                        3. تصحيح بقية الأسئلة سؤالاً بسؤال مع توضيح الأخطاء والإجابة السليمة.
                         4. نصائح توجيهية نهائية.
                         """
                         
