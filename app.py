@@ -6,6 +6,7 @@ from lesson_generator import create_formatted_lesson_docx
 from prompts.system_prompts import LESSON_GENERATOR_PROMPT
 from prompts.syrian_curriculum import SYRIAN_CURRICULUM_PROMPT, SYRIAN_EXAM_PROMPT
 from syrian_data import SYRIAN_9TH_CURRICULUM, SYRIAN_BAC_CURRICULUM
+from engine import analyze_arabic_text, generate_content_with_fallback, analyze_rhetoric_and_meter, generate_grammar_quiz
 
 # --- 1. إعدادات الصفحة ---
 st.set_page_config(
@@ -152,7 +153,13 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-tab1, tab2, tab3, tab4 = st.tabs(["🔍 تحليل النص والإعراب", "📚 تحضير درس للمعلم (.docx)", "🎓 منهاج التاسع والبكالوريا (سوريا)", "✨ التحليل البلاغي والعروضي"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    "🔍 تحليل النص والإعراب", 
+    "📚 تحضير درس للمعلم (.docx)", 
+    "🎓 منهاج التاسع والبكالوريا (سوريا)", 
+    "✨ التحليل البلاغي والعروضي",
+    "🎮 مُمرّن الإعراب التفاعلي"
+])
 
 # === التبويب الأول: الإعراب ===
 with tab1:
@@ -450,6 +457,93 @@ with tab4:
                         <p style="font-size: 1.1rem;"><b>القافية والروي:</b> <span style="color: #38bdf8;">{r_result.prosody.rhyme_and_rawi}</span></p>
                     </div>
                     """, unsafe_allow_html=True)
+
+# === التبويب الخامس: مُمرّن الإعراب التفاعلي (Gamified Grammar) ===
+with tab5:
+    st.markdown("## 🎮 مُمرّن الإعراب التفاعلي")
+    st.markdown("اختبر مهاراتك النحوية مع التحدي التفاعلي واستمتع بجمع النقاط والأوسمة!")
+
+    # تهيئة نظام النقاط في Session State
+    if "user_score" not in st.session_state:
+        st.session_state["user_score"] = 0
+    if "streak" not in st.session_state:
+        st.session_state["streak"] = 0
+
+    # لوحة النتيجة والأوسمة
+    col_sc1, col_sc2, col_sc3 = st.columns(3)
+    with col_sc1:
+        st.metric(label="🏆 إجمالي النقاط", value=st.session_state["user_score"])
+    with col_sc2:
+        st.metric(label="🔥 التتابع الصحيح (Streak)", value=st.session_state["streak"])
+    with col_sc3:
+        badge = "🌱 مبتدئ"
+        if st.session_state["user_score"] >= 100:
+            badge = "👑 فارس النحو"
+        elif st.session_state["user_score"] >= 50:
+            badge = "⭐ باحث نحوي"
+        elif st.session_state["user_score"] >= 20:
+            badge = "📚 طالب مجتهد"
+        st.metric(label="🎖️ الرتبة الحالية", value=badge)
+
+    st.markdown("---")
+
+    col_q1, col_q2 = st.columns(2)
+    with col_q1:
+        quiz_grade = st.selectbox("اختر المنهاج للتحدي:", ["الصف التاسع الإعدادي", "الثالث الثانوي (البكالوريا)"], key="quiz_grade")
+    with col_q2:
+        quiz_branch = st.selectbox("الفرع:", ["العلمي", "الأدبي"], key="quiz_branch") if quiz_grade == "الثالث الثانوي (البكالوريا)" else "عام"
+
+    if st.button("🎲 استخراج سؤال جديد", key="btn_next_quiz"):
+        with st.spinner("جاري إعداد التحدي الإعرابي..."):
+            q_data = generate_grammar_quiz(quiz_grade, quiz_branch)
+            if q_data:
+                st.session_state["current_quiz"] = q_data
+                st.session_state["quiz_answered"] = False
+            else:
+                st.error("تعذر جلب سؤال حالياً، يرجى المحاولة ثانية.")
+
+    # عرض السؤال الحالي
+    if "current_quiz" in st.session_state:
+        q = st.session_state["current_quiz"]
+
+        st.markdown(f"""
+        <div class="card-box" style="border-color: #facc15; text-align: center;">
+            <h3 style="color: #cbd5e1; margin-bottom: 10px;">📜 الجملة/البيت الشعري:</h3>
+            <p style="font-size: 1.4rem; font-weight: 800; color: #f8fafc;">{q.sentence}</p>
+            <hr style="border: 0.5px solid #334155;">
+            <p style="font-size: 1.2rem; color: #38bdf8;">🎯 المطلوب: ما الإعراب الصحيح لكلمة <b>«{q.target_word}»</b>؟</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # التلميح النحوي
+        with st.expander("💡 هل تحتاجة تلميحاً؟"):
+            st.info(q.hint)
+
+        # خيارات الإجابة
+        selected_option = st.radio("اختر الإجابة الصحيحة:", [opt.option_text for opt in q.options], key="user_choice")
+
+        if st.button("تأكيد الإجابة 🚀", key="btn_submit_answer"):
+            st.session_state["quiz_answered"] = True
+            chosen_obj = next((opt for opt in q.options if opt.option_text == selected_option), None)
+
+            if chosen_obj and chosen_obj.is_correct:
+                st.balloons()
+                st.success("🎉 إجابة صحيحة وممتازة! (+10 نقاط)")
+                st.session_state["user_score"] += 10
+                st.session_state["streak"] += 1
+            else:
+                st.error("❌ إجابة خاطئة، حاول في السؤال القادم!")
+                st.session_state["streak"] = 0
+
+            # إظهار التوضيح لجميع الخيارات
+            st.markdown("#### 🔍 الشرح والتعليل:")
+            for opt in q.options:
+                if opt.is_correct:
+                    st.markdown(f"✅ **{opt.option_text}**: {opt.explanation}")
+                else:
+                    st.markdown(f"❌ **{opt.option_text}**: {opt.explanation}")
+
+
 
 # --- 5. التوقيع ---
 st.markdown("""
