@@ -167,3 +167,47 @@ def analyze_rhetoric_and_meter(text: str) -> Optional[RhetoricMeterResponse]:
                 continue
 
     return None
+
+# --- 3. نماذج مُمرّن الإعراب التفاعلي (Quiz Models) ---
+class QuizOption(BaseModel):
+    option_text: str = Field(description="نص الخيار الإعرابي (مثال: فاعل مرفوع وعلامة رفعه الضمة)")
+    is_correct: bool = Field(description="هل هذا الخيار هو الإجابة الصحيحة؟")
+    explanation: str = Field(description="توضيح مختصر لسبب صحة أو خطأ هذا الخيار")
+
+class QuizQuestion(BaseModel):
+    sentence: str = Field(description="الجملة أو البيت الشعري الحاوي على الكلمة المستهدفة")
+    target_word: str = Field(description="الكلمة المحددة للإعراب")
+    question_text: str = Field(description="صياغة السؤال (مثال: ما الإعراب الصحيح لكلمة '...' في الجملة؟)")
+    options: List[QuizOption] = Field(description="قائمة بـ 4 خيارات إعرابية (واحد منها فقط صحيح)")
+    hint: str = Field(description="تلميح نحوي ذكي للمساعدة دون إعطاء الإجابة مباشرة")
+
+# --- دالة توليد سؤال إعرابي تفاعلي ---
+def generate_grammar_quiz(grade: str, branch: str) -> Optional[QuizQuestion]:
+    valid_keys = [k for k in API_KEYS if k and k.strip()]
+    if not valid_keys:
+        return None
+
+    prompt = f"""
+    قم بصياغة سؤال إعرابي تفاعلي مبتكر ومناسب لطلاب {grade} ({branch}) بناءً على الشواهد والأبيات المقررة في كتاب اللغة العربية السوري.
+    اختر جملة أو بيتاً شعرياً، وحدد كلمة واحدة مميزة فيه، وضع 4 خيارات إعرابية دقيقة (خيار واحد صحيح و 3 خيارات خاطئة لكنها منطقية للتمويه).
+    تنبيه: أخرج النتيجة بتنسيق JSON المطابق للنموذج فقط وتوقف فوراً دون أية أسئلة أو مقدمات.
+    """
+
+    for api_key in valid_keys:
+        client = genai.Client(api_key=api_key)
+        models_to_try = get_working_models(client)
+        for model in models_to_try:
+            try:
+                response = client.models.generate_content(
+                    model=model,
+                    contents=prompt,
+                    config={
+                        'response_mime_type': 'application/json',
+                        'response_schema': QuizQuestion,
+                    }
+                )
+                return QuizQuestion.model_validate_json(response.text)
+            except Exception as e:
+                continue
+
+    return None
