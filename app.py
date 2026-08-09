@@ -1,7 +1,7 @@
 import streamlit as st
 import json
 import os
-from engine import analyze_arabic_text, generate_content_with_fallback
+from engine import analyze_arabic_text, generate_content_with_fallback, analyze_rhetoric_and_meter
 from lesson_generator import create_formatted_lesson_docx
 from prompts.system_prompts import LESSON_GENERATOR_PROMPT
 from prompts.syrian_curriculum import SYRIAN_CURRICULUM_PROMPT, SYRIAN_EXAM_PROMPT
@@ -152,7 +152,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-tab1, tab2, tab3 = st.tabs(["🔍 تحليل النص والإعراب", "📚 تحضير درس للمعلم (.docx)", "🎓 منهاج التاسع والبكالوريا (سوريا)"])
+tab1, tab2, tab3, tab4 = st.tabs(["🔍 تحليل النص والإعراب", "📚 تحضير درس للمعلم (.docx)", "🎓 منهاج التاسع والبكالوريا (سوريا)", "✨ التحليل البلاغي والعروضي"])
 
 # === التبويب الأول: الإعراب ===
 with tab1:
@@ -234,7 +234,7 @@ with tab2:
                 except Exception as e:
                     st.error(f"حدث خطأ أثناء إعداد الدرس: {e}")
 
-# === التبويب الثالث: المنهاج السوري (تاسع وبكالوريا) ===
+# === التبويب الثالث: المنهاج السوري ===
 with tab3:
     st.markdown("## 🎓 دليل وتدريبات المنهاج السوري")
     
@@ -252,7 +252,6 @@ with tab3:
     with col_branch:
         branch = st.selectbox("الفرع (للبكالوريا):", ["العلمي", "الأدبي"]) if grade == "الثالث الثانوي (البكالوريا)" else "عام"
 
-    # دالة مساعدة لجلب النص المفرغ تلقائياً من الكتاب
     def get_extracted_lesson_text(lesson_title):
         json_path = os.path.join("data", "grade9_texts.json")
         if os.path.exists(json_path):
@@ -266,7 +265,6 @@ with tab3:
                 pass
         return None
 
-    # الخدمة الأولى: شرح الدرس
     if sub_mode == "📖 شرح درس وتطبيقاته من المنهاج":
         curriculum_data = SYRIAN_9TH_CURRICULUM if grade == "الصف التاسع الإعدادي" else SYRIAN_BAC_CURRICULUM
         
@@ -285,14 +283,13 @@ with tab3:
                     if original_text:
                         context_prompt = f"\n\nملاحظة هامّة: استخدم النص المعتمد حرفياً من كتاب الوزارة السوري الآتي ولا تخمّن أبياتاً خارجية:\n'''\n{original_text}\n'''"
 
-                    query = f"{SYRIAN_CURRICULUM_PROMPT}\n\nالمرحلة: {grade} ({branch})\nالوحدة: {selected_unit}\nالدرس/القصيدة: {selected_lesson}{context_prompt}\n\nقدم شرحاً شاملاً للدرس يتضمن: القاعدة التفصيلية، الشواهد من أسطر/قصائد الكتاب، الإعراب النموذجي للكلمات الرئيسية، وطريقة السؤال الصادرة في الامتحان الوزاري وكيفية الإجابة عليه."
+                    query = f"{SYRIAN_CURRICULUM_PROMPT}\n\nالمرحلة: {grade} ({branch})\nالوحدة: {selected_unit}\nالدرس/القصيدة: {selected_lesson}{context_prompt}\n\nقدم شرحاً شاملاً للدرس يتضمن: القاعدة التفصيلية، الشواهد من أسطر/قصائد الكتاب، الإعراب النموذجي للكلمات الرئيسية، وطريقة السؤال الصادرة في الامتحان الوزاري وكيفية الإجابة عليه.\n\nتنبيه: أخرج الشرح فقط وتوقف فوراً دون إضافة أي أسئلة أو اقتراحات للمستخدم في النهاية."
                     
                     response_text = generate_content_with_fallback(query)
                     st.markdown(f"<div style='direction: rtl; text-align: right;'>{response_text}</div>", unsafe_allow_html=True)
                 except Exception as e:
                     st.error(f"حدث خطأ: {e}")
 
-    # الخدمة الثانية: الاختبار والنموذج الامتحاني الشامل
     else:
         st.markdown("### 📝 ورقة امتحانية تفاعلية شاملة (تطابق الامتحان النهائي)")
         
@@ -312,7 +309,6 @@ with tab3:
 
         if "exam_data" in st.session_state:
             exam_data = st.session_state["exam_data"]
-            
             st.markdown("<h4 style='color: #38bdf8; margin-bottom: 16px; font-weight: 800; text-align: right;'>📜 النص الشعري المقرر للشهادة:</h4>", unsafe_allow_html=True)
             
             poem_container = st.container()
@@ -391,19 +387,74 @@ with tab3:
                         2. تقييم مفصل لسؤال الموضوع الأدبي/الاجباري.
                         3. تصحيح بقية الأسئلة سؤالاً بسؤال مع توضيح الأخطاء والإجابة السليمة.
                         4. نصائح توجيهية نهائية.
+                        تنبيه: أخرج التقرير فقط وتوقف فوراً دون أي مجاملات ختامية أو أسئلة تفاعلية.
                         """
                         
                         response_text = generate_content_with_fallback(eval_prompt)
-                        
                         st.markdown("<h2 style='direction: rtl; text-align: right;'>📊 نتيجة التصحيح وتقييم الامتحان:</h2>", unsafe_allow_html=True)
                         st.markdown(f"<div style='direction: rtl; text-align: right;'>{response_text}</div>", unsafe_allow_html=True)
                     except Exception as e:
                         st.error(f"حدث خطأ أثناء إجراء التصحيح: {e}")
 
-# --- 4. التوقيع ---
+# === التبويب الرابع: التحليل البلاغي والعروضي المضاف ===
+with tab4:
+    st.markdown("## 🎨 المُحلّل البلاغي والعروضي الذكي")
+    st.markdown("أدخل أي بيت شعري لاستخراج الصور الخيالية (التشابه والاستعارات)، المحسنات البديعية، والتقطيع العروضي والبحر.")
+    
+    verse_input = st.text_input(
+        "أدخل البيت الشعري المراد تحليله:",
+        placeholder="مثال: وَإِذا المَنِيَّةُ أَنشَبَت أَظفارَها ... أَلفَيتَ كُلَّ خالِقَةٍ لا تَنفَعُ",
+        value="وَإِذا المَنِيَّةُ أَنشَبَت أَظفارَها ... أَلفَيتَ كُلَّ خالِقَةٍ لا تَنفَعُ"
+    )
+    
+    if st.button("تحليل الصور البلاغية والعروض 🎭", key="btn_rhetoric"):
+        if not verse_input.strip():
+            st.warning("يرجى إدخال بيت شعري للتحليل.")
+        else:
+            with st.spinner("جاري التقطيع العروضي واستخراج الصور البلاغية..."):
+                r_result = analyze_rhetoric_and_meter(verse_input)
+                
+            if not r_result:
+                st.error("تعذر تحليل البيت الشعري. يرجى المحاولة لاحقاً.")
+            else:
+                col_b1, col_b2 = st.columns(2)
+                
+                with col_b1:
+                    st.markdown("### 🖼️ الصور البيانية والخيالية")
+                    if r_result.imagery:
+                        for img in r_result.imagery:
+                            st.markdown(f"""
+                            <div class="card-box">
+                                <div style="color: #38bdf8; font-weight: 800; font-size: 1.2rem;">📌 التركيب: {img.phrase}</div>
+                                <div style="color: #facc15; margin: 6px 0;">✨ النوع: <b>{img.image_type}</b></div>
+                                <div style="color: #cbd5e1;">💡 الشرح: {img.explanation}</div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                    else:
+                        st.info("لم تُسجّل صور خيالية بارزة في هذا البيت.")
+
+                    st.markdown("### 🎭 المحسنات البديعية")
+                    if r_result.rhetorical_devices:
+                        for dev in r_result.rhetorical_devices:
+                            st.markdown(f"🔹 **{dev.device_type}** بين: `{dev.words}` - **الأثر:** {dev.impact}")
+                    else:
+                        st.info("لا توجد محسنات بديعية خالية في هذا النص.")
+
+                with col_b2:
+                    st.markdown("### 🥁 التقطيع العروضي والبحر")
+                    st.markdown(f"""
+                    <div class="card-box" style="border-color: #4ade80;">
+                        <h3 style="color: #4ade80; margin-bottom: 10px;">🎼 {r_result.prosody.meter_name}</h3>
+                        <p style="font-size: 1.1rem;"><b>التفاعيل:</b> <span style="color: #facc15;">{r_result.prosody.taftilahs}</span></p>
+                        <p style="font-size: 1.1rem;"><b>الترميز العروضي:</b> <code>{r_result.prosody.scansion_code}</code></p>
+                        <p style="font-size: 1.1rem;"><b>القافية والروي:</b> <span style="color: #38bdf8;">{r_result.prosody.rhyme_and_rawi}</span></p>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+# --- 5. التوقيع ---
 st.markdown("""
 <div class='footer-container'>
     <p>تصميم وتطوير: <b>مهيدي الخالدي</b> | <a href='mailto:alkhaldimhedy@gmail.com'>alkhaldimhedy@gmail.com</a></p>
-    <p>جميع الحقوق محفوظة © 2026 | الإصدار: <b>v1.1.0</b></p>
+    <p>جميع الحقوق محفوظة © 2026 | الإصدار: <b>v1.2.0</b></p>
 </div>
 """, unsafe_allow_html=True)
