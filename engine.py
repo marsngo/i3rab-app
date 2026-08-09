@@ -12,7 +12,7 @@ SYSTEM_PROMPT = """
 قم بتحليل النص المدخل وإعرابه مفردات وجلماً، مع توضيح الصرف والجذور والأوزان بدقة متناهية.
 """
 
-# --- نماذج البيانات (Pydantic Models) ---
+# --- 1. نماذج الإعراب (Parsing Models) ---
 class ParsingInfo(BaseModel):
     irab: str = Field(description="الإعراب التفصيلي للكلمة")
     reason: str = Field(description="التعليل النحوي وسبب الحركة")
@@ -46,27 +46,42 @@ class TextAnalysisResponse(BaseModel):
     sentences_analysis: List[SentenceAnalysis]
     references: List[str]
 
+# --- 2. نماذج البلاغة والعروض (Rhetoric & Meter Models) ---
+class ImageryAnalysis(BaseModel):
+    phrase: str = Field(description="التركيب البلاغي أو الصورة من البيت")
+    image_type: str = Field(description="نوع الصورة: استعارة مكنية/تصريحية، تشبيه تام/مؤكد/مجمل/بليغ، كناية")
+    explanation: str = Field(description="شرح الصورة البلاغية وأركانها وسر جمالها")
+
+class RhetoricalDevisor(BaseModel):
+    device_type: str = Field(description="المحسن البديعي: طباق، جناس، تصريع، مقابلة...")
+    words: str = Field(description="الكلمات التي تحقق فيها المحسن")
+    impact: str = Field(description="الأثر الفني للمحسن البديعي")
+
+class ProsodyAnalysis(BaseModel):
+    meter_name: str = Field(description="اسم البحر الشعري (مثال: البحر الطويل، الخفيف...)")
+    taftilahs: str = Field(description="التفاعيل العروضية للبيت (مثل: فعولن مفاعيلن...)")
+    scansion_code: str = Field(description="التقطيع العروضي بالرموز (///o //o ///o...)")
+    rhyme_and_rawi: str = Field(description="تحديد القافية وحرف الروي مع حركته")
+
+class RhetoricMeterResponse(BaseModel):
+    verse: str
+    imagery: List[ImageryAnalysis]
+    rhetorical_devices: List[RhetoricalDevisor]
+    prosody: ProsodyAnalysis
+
 # --- دالة اكتشاف النماذج المتاحة ديناميكياً ---
 def get_working_models(client) -> List[str]:
-    """
-    تستعلم من Google API عن جميع النماذج المتاحة فعلياً والحية للحساب
-    """
     try:
         available_models = []
         for m in client.models.list():
-            # نختار النماذج التي تدعم توليد النصوص فقط وتجنب نماذج الصور أو الصوت
             if "generateContent" in getattr(m, 'supported_generation_methods', []) or hasattr(m, 'name'):
                 name = m.name.replace("models/", "")
                 if "flash" in name and "embed" not in name:
                     available_models.append(name)
-        
-        # إذا وجد نماذج نضع نماذج flash في البداية لأنها الأسرع والأعلى في الحصة المجانية
         if available_models:
             return sorted(available_models, key=lambda x: ("flash" not in x, x))
     except Exception:
         pass
-    
-    # القائمة الاحتياطية المباشرة في حال تعذر الاستعلام
     return ["gemini-2.5-flash", "gemini-2.0-flash"]
 
 # --- دالة التدوير والاحتياط الذكي العامة ---
@@ -76,11 +91,9 @@ def generate_content_with_fallback(prompt: str) -> str:
         raise Exception("لم يتم العثور على أي مفتاح API صالح. يرجى إضافته في Streamlit Secrets أو config.py")
 
     last_error = None
-
     for api_key in valid_keys:
         client = genai.Client(api_key=api_key)
         models_to_try = get_working_models(client)
-        
         for model in models_to_try:
             try:
                 response = client.models.generate_content(
@@ -106,7 +119,6 @@ def analyze_arabic_text(text: str) -> Optional[TextAnalysisResponse]:
     for api_key in valid_keys:
         client = genai.Client(api_key=api_key)
         models_to_try = get_working_models(client)
-        
         for model in models_to_try:
             try:
                 response = client.models.generate_content(
@@ -123,4 +135,35 @@ def analyze_arabic_text(text: str) -> Optional[TextAnalysisResponse]:
                 continue
 
     print(f"Error in analyze_arabic_text: {last_error}")
+    return None
+
+# --- دالة التحليل البلاغي والعروضي المضافة ---
+def analyze_rhetoric_and_meter(text: str) -> Optional[RhetoricMeterResponse]:
+    valid_keys = [k for k in API_KEYS if k and k.strip()]
+    if not valid_keys:
+        return None
+
+    prompt = f"""
+    أنت خبير في البلاغة العربية والعروض. قم بتقديم تحليل بلاغي وعروضي دقيق للبيت الشعري التالي:
+    "{text}"
+    تنبيه: أخرج التحليل بدقة عالية دون كتابة أي أسئلة أو مجاملات تفاعلية في النهاية.
+    """
+
+    for api_key in valid_keys:
+        client = genai.Client(api_key=api_key)
+        models_to_try = get_working_models(client)
+        for model in models_to_try:
+            try:
+                response = client.models.generate_content(
+                    model=model,
+                    contents=prompt,
+                    config={
+                        'response_mime_type': 'application/json',
+                        'response_schema': RhetoricMeterResponse,
+                    }
+                )
+                return RhetoricMeterResponse.model_validate_json(response.text)
+            except Exception as e:
+                continue
+
     return None
